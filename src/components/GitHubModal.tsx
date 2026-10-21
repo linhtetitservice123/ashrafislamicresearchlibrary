@@ -32,9 +32,9 @@ export const GitHubModal: React.FC<GitHubModalProps> = ({ isOpen, onClose }) => 
   if (!isOpen) return null;
 
   // Real App URL running right now with safe fallback
-  let liveAppUrl = 'https://ais-pre-qtjx62caop66brgarimllb-733811071014.asia-southeast1.run.app';
+  let liveAppUrl = '';
   try {
-    if (typeof window !== 'undefined' && window.location && window.location.href && !window.location.href.startsWith('about:')) {
+    if (typeof window !== 'undefined' && window.location && window.location.href) {
       liveAppUrl = window.location.href;
     }
   } catch (e) {
