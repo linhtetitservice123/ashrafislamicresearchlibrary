@@ -160,7 +160,7 @@ export const PaperCard: React.FC<PaperCardProps> = ({
 
         {/* Tags */}
         <div className="flex flex-wrap gap-1.5 mb-4">
-          {paper.tags.slice(0, 3).map((tag, idx) => (
+          {(paper.tags || []).slice(0, 3).map((tag, idx) => (
             <span
               key={idx}
               className="text-[11px] px-2 py-0.5 rounded bg-[#FAF7F2] text-[#7A5B3D] border border-[#E9DFCE] font-burmese"
@@ -168,9 +168,9 @@ export const PaperCard: React.FC<PaperCardProps> = ({
               #{tag}
             </span>
           ))}
-          {paper.tags.length > 3 && (
+          {(paper.tags?.length || 0) > 3 && (
             <span className="text-[10px] text-[#A68F7E] self-center">
-              +{paper.tags.length - 3}
+              +{(paper.tags?.length || 0) - 3}
             </span>
           )}
         </div>

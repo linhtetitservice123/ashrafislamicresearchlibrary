@@ -36,7 +36,13 @@ export const AdminContactSection: React.FC<AdminContactSectionProps> = ({
   const [selectedTopicType, setSelectedTopicType] = useState('general');
 
   const copyToClipboard = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text);
+      }
+    } catch (e) {
+      console.error(e);
+    }
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2500);
   };

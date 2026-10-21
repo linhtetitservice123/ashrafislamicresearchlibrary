@@ -43,8 +43,14 @@ export const PaperReaderModal: React.FC<PaperReaderModalProps> = ({
   const categoryMeta = CATEGORIES_CONFIG[paper.category];
 
   const handleCopyCitation = () => {
-    const citation = `${paper.author} (${paper.publicationYear}). "${paper.title}". Islamic Research Academy, Ref: ${paper.referenceNumber}.`;
-    navigator.clipboard.writeText(citation);
+    try {
+      const citation = `${paper.author} (${paper.publicationYear}). "${paper.title}". Islamic Research Academy, Ref: ${paper.referenceNumber}.`;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(citation);
+      }
+    } catch (e) {
+      console.error(e);
+    }
     setCopiedCitation(true);
     setTimeout(() => setCopiedCitation(false), 2500);
   };

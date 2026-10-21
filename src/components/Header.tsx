@@ -9,6 +9,7 @@ import {
   X,
   MessageCircle,
   Sparkles,
+  Github,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -17,6 +18,7 @@ interface HeaderProps {
   openUploadModal: () => void;
   openRequestModal: () => void;
   openAdminModal: () => void;
+  openGitHubModal: () => void;
   bookmarkCount: number;
 }
 
@@ -26,6 +28,7 @@ export const Header: React.FC<HeaderProps> = ({
   openUploadModal,
   openRequestModal,
   openAdminModal,
+  openGitHubModal,
   bookmarkCount,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -51,6 +54,13 @@ export const Header: React.FC<HeaderProps> = ({
           بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ • وَقُل رَّبِّ زِدْنِي عِلْمًا
         </div>
         <div className="hidden lg:flex items-center gap-3 text-xs text-[#C69C6D]">
+          <button
+            onClick={openGitHubModal}
+            className="flex items-center gap-1.5 text-white/80 hover:text-white transition-colors bg-white/10 hover:bg-white/20 px-2 py-0.5 rounded"
+          >
+            <Github className="w-3.5 h-3.5" />
+            <span className="font-sans">GitHub Guide</span>
+          </button>
           <span>WhatsApp Helpline: 09-777112233</span>
         </div>
       </div>
@@ -115,8 +125,17 @@ export const Header: React.FC<HeaderProps> = ({
             })}
           </nav>
 
-          {/* Action CTAs: Upload Paper & WhatsApp Admin Direct button */}
-          <div className="hidden lg:flex items-center gap-3">
+          {/* Action CTAs: GitHub Guide, Upload Paper & WhatsApp Admin Direct button */}
+          <div className="hidden lg:flex items-center gap-2.5">
+            <button
+              onClick={openGitHubModal}
+              className="flex items-center gap-1.5 px-3 py-2 bg-white/10 hover:bg-white/15 text-[#EAD8B5] text-xs font-medium rounded-lg border border-white/20 transition-all font-burmese"
+              title="GitHub ဖြင့် Website ပြုလုပ်/လွှင့်တင်နည်း လမ်းညွှန်"
+            >
+              <Github className="w-4 h-4 text-white" />
+              <span>GitHub တင်နည်း</span>
+            </button>
+
             <button
               onClick={openUploadModal}
               className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#8B5A2B] to-[#6E421C] hover:from-[#9D6833] hover:to-[#7E4C21] text-[#FAF7F2] text-sm font-semibold rounded-lg shadow border border-[#D9A86B]/30 hover:shadow-lg transition-all"
@@ -192,27 +211,39 @@ export const Header: React.FC<HeaderProps> = ({
             );
           })}
 
-          <div className="pt-3 border-t border-[#3B1F0E] grid grid-cols-2 gap-2">
+          <div className="pt-3 border-t border-[#3B1F0E] space-y-2">
             <button
               onClick={() => {
-                openUploadModal();
+                openGitHubModal();
                 setMobileMenuOpen(false);
               }}
-              className="flex items-center justify-center gap-2 py-2.5 bg-[#8B5A2B] text-white rounded-lg text-sm font-burmese font-medium"
+              className="w-full flex items-center justify-center gap-2 py-2 bg-white/10 hover:bg-white/15 text-[#EAD8B5] rounded-lg text-xs font-burmese font-medium border border-white/20"
             >
-              <Upload className="w-4 h-4" />
-              <span>စာတမ်းတင်မည်</span>
+              <Github className="w-4 h-4 text-white" />
+              <span>GitHub ဖြင့် Website ပြုလုပ်/လွှင့်တင်နည်း လမ်းညွှန်</span>
             </button>
-            <button
-              onClick={() => {
-                openRequestModal();
-                setMobileMenuOpen(false);
-              }}
-              className="flex items-center justify-center gap-2 py-2.5 bg-[#3D2414] border border-[#8B5A2B]/60 text-[#FAF7F2] rounded-lg text-sm font-burmese font-medium"
-            >
-              <FileQuestion className="w-4 h-4" />
-              <span>စာတမ်းတောင်းဆို</span>
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => {
+                  openUploadModal();
+                  setMobileMenuOpen(false);
+                }}
+                className="flex items-center justify-center gap-2 py-2.5 bg-[#8B5A2B] text-white rounded-lg text-sm font-burmese font-medium"
+              >
+                <Upload className="w-4 h-4" />
+                <span>စာတမ်းတင်မည်</span>
+              </button>
+              <button
+                onClick={() => {
+                  openRequestModal();
+                  setMobileMenuOpen(false);
+                }}
+                className="flex items-center justify-center gap-2 py-2.5 bg-[#3D2414] border border-[#8B5A2B]/60 text-[#FAF7F2] rounded-lg text-sm font-burmese font-medium"
+              >
+                <FileQuestion className="w-4 h-4" />
+                <span>စာတမ်းတောင်းဆို</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

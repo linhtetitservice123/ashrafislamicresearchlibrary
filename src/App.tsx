@@ -33,6 +33,7 @@ import { PaperRequestModal } from './components/PaperRequestModal';
 import { PaperRequestsBoard } from './components/PaperRequestsBoard';
 import { AdminContactSection } from './components/AdminContactSection';
 import { AdminContactsModal } from './components/AdminContactsModal';
+import { GitHubModal } from './components/GitHubModal';
 import { Footer } from './components/Footer';
 
 export default function App() {
@@ -40,7 +41,10 @@ export default function App() {
   const [papers, setPapers] = useState<Paper[]>(() => {
     try {
       const saved = localStorage.getItem('ira_papers');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
     } catch (e) {
       console.error(e);
     }
@@ -51,7 +55,10 @@ export default function App() {
   const [requests, setRequests] = useState<PaperRequest[]>(() => {
     try {
       const saved = localStorage.getItem('ira_requests');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
     } catch (e) {
       console.error(e);
     }
@@ -62,7 +69,10 @@ export default function App() {
   const [bookmarks, setBookmarks] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('ira_bookmarks');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
     } catch (e) {
       console.error(e);
     }
@@ -81,6 +91,7 @@ export default function App() {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const [isGitHubModalOpen, setIsGitHubModalOpen] = useState(false);
   const [adminInquiryTopic, setAdminInquiryTopic] = useState('');
 
   // Notification Toast
@@ -91,7 +102,7 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Sync to localStorage
+  // Sync to localStorage safely
   useEffect(() => {
     try {
       localStorage.setItem('ira_papers', JSON.stringify(papers));
@@ -119,27 +130,28 @@ export default function App() {
   // Toggle Bookmark
   const handleToggleBookmark = (paperId: string) => {
     setBookmarks((prev) => {
-      const exists = prev.includes(paperId);
+      const safePrev = Array.isArray(prev) ? prev : [];
+      const exists = safePrev.includes(paperId);
       if (exists) {
         showToast('စာတမ်းအား မှတ်တမ်းမှ ဖယ်ရှားလိုက်ပါပြီ');
-        return prev.filter((id) => id !== paperId);
+        return safePrev.filter((id) => id !== paperId);
       } else {
         showToast('စာတမ်းအား သိမ်းဆည်းမှတ်တမ်းတွင် ထည့်သွင်းပြီးပါပြီ ✓');
-        return [...prev, paperId];
+        return [...safePrev, paperId];
       }
     });
   };
 
   // Upload handler
   const handlePaperUploaded = (newPaper: Paper) => {
-    setPapers((prev) => [newPaper, ...prev]);
+    setPapers((prev) => [newPaper, ...(Array.isArray(prev) ? prev : [])]);
     showToast(`"${newPaper.title}" စာတမ်းအား အောင်မြင်စွာ တင်သွင်းပြီးပါပြီ ✓`);
     setReaderPaper(newPaper);
   };
 
   // Request handler
   const handleRequestSubmitted = (newReq: PaperRequest) => {
-    setRequests((prev) => [newReq, ...prev]);
+    setRequests((prev) => [newReq, ...(Array.isArray(prev) ? prev : [])]);
     showToast('စာတမ်းတောင်းဆိုချက်ကို လက်ခံရရှိပါပြီ။ ပညာရှင်များက စစ်ဆေးရှာဖွေပေးပါမည် ✓');
     setCurrentTab('requests');
   };
@@ -158,9 +170,10 @@ export default function App() {
 
   // Reader Open
   const handleOpenReader = (paper: Paper) => {
-    // Increment read count
     setPapers((prev) =>
-      prev.map((p) => (p.id === paper.id ? { ...p, readCount: p.readCount + 1 } : p))
+      (Array.isArray(prev) ? prev : []).map((p) =>
+        p && p.id === paper.id ? { ...p, readCount: (p.readCount || 0) + 1 } : p
+      )
     );
     setReaderPaper(paper);
   };
@@ -168,13 +181,16 @@ export default function App() {
   // Download increment
   const handlePaperDownloaded = (paperId: string) => {
     setPapers((prev) =>
-      prev.map((p) => (p.id === paperId ? { ...p, downloadCount: p.downloadCount + 1 } : p))
+      (Array.isArray(prev) ? prev : []).map((p) =>
+        p && p.id === paperId ? { ...p, downloadCount: (p.downloadCount || 0) + 1 } : p
+      )
     );
   };
 
   // View fulfilled paper
   const handleViewFulfilledPaper = (paperId: string) => {
-    const found = papers.find((p) => p.id === paperId);
+    const list = Array.isArray(papers) ? papers : [];
+    const found = list.find((p) => p && p.id === paperId);
     if (found) {
       setReaderPaper(found);
     } else {
@@ -182,46 +198,51 @@ export default function App() {
     }
   };
 
-  // Filter & Search Logic
+  // Filter & Search Logic safely
   const filteredPapers = useMemo(() => {
-    let result = papers;
+    let result = Array.isArray(papers) ? papers : INITIAL_PAPERS;
 
     // Tab filter for bookmarks
     if (currentTab === 'bookmarks') {
-      result = result.filter((p) => bookmarks.includes(p.id));
+      const bSet = Array.isArray(bookmarks) ? bookmarks : [];
+      result = result.filter((p) => p && bSet.includes(p.id));
     }
 
     // Category filter
     if (selectedCategory !== 'all') {
-      result = result.filter((p) => p.category === selectedCategory);
+      result = result.filter((p) => p && p.category === selectedCategory);
     }
 
     // Language filter
     if (selectedLanguage !== 'all') {
-      result = result.filter((p) => p.language === selectedLanguage);
+      result = result.filter((p) => p && p.language === selectedLanguage);
     }
 
     // Search query filter
-    if (searchQuery.trim()) {
+    if (searchQuery && searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       result = result.filter(
         (p) =>
-          p.title.toLowerCase().includes(q) ||
-          (p.titleOriginalScript && p.titleOriginalScript.toLowerCase().includes(q)) ||
-          p.author.toLowerCase().includes(q) ||
-          p.abstract.toLowerCase().includes(q) ||
-          p.tags.some((t) => t.toLowerCase().includes(q)) ||
-          p.referenceNumber.toLowerCase().includes(q)
+          p &&
+          ((p.title || '').toLowerCase().includes(q) ||
+            (p.titleOriginalScript && p.titleOriginalScript.toLowerCase().includes(q)) ||
+            (p.author || '').toLowerCase().includes(q) ||
+            (p.abstract || '').toLowerCase().includes(q) ||
+            (Array.isArray(p.tags) && p.tags.some((t) => (t || '').toLowerCase().includes(q))) ||
+            (p.referenceNumber || '').toLowerCase().includes(q))
       );
     }
 
     // Sorting
     result = [...result].sort((a, b) => {
-      if (sortBy === 'popular') return b.readCount - a.readCount;
-      if (sortBy === 'downloads') return b.downloadCount - a.downloadCount;
-      if (sortBy === 'pages') return b.pages - a.pages;
+      if (!a || !b) return 0;
+      if (sortBy === 'popular') return (b.readCount || 0) - (a.readCount || 0);
+      if (sortBy === 'downloads') return (b.downloadCount || 0) - (a.downloadCount || 0);
+      if (sortBy === 'pages') return (b.pages || 0) - (a.pages || 0);
       // Default: recent
-      return new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime();
+      const dateB = b.uploadedAt ? new Date(b.uploadedAt).getTime() : 0;
+      const dateA = a.uploadedAt ? new Date(a.uploadedAt).getTime() : 0;
+      return dateB - dateA;
     });
 
     return result;
@@ -253,6 +274,7 @@ export default function App() {
           setAdminInquiryTopic('');
           setIsAdminModalOpen(true);
         }}
+        openGitHubModal={() => setIsGitHubModalOpen(true)}
         bookmarkCount={bookmarks.length}
       />
 
@@ -483,6 +505,11 @@ export default function App() {
         isOpen={isAdminModalOpen}
         onClose={() => setIsAdminModalOpen(false)}
         initialTopic={adminInquiryTopic}
+      />
+
+      <GitHubModal
+        isOpen={isGitHubModalOpen}
+        onClose={() => setIsGitHubModalOpen(false)}
       />
 
       {/* Footer */}

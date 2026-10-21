@@ -31,12 +31,16 @@ export const PaperRequestsBoard: React.FC<PaperRequestsBoardProps> = ({
   const [filterStatus, setFilterStatus] = useState<RequestStatus | 'all'>('all');
   const [searchTopic, setSearchTopic] = useState('');
 
-  const filteredRequests = requests.filter((req) => {
+  const safeRequests = Array.isArray(requests) ? requests : [];
+  const filteredRequests = safeRequests.filter((req) => {
+    if (!req) return false;
     const matchesStatus = filterStatus === 'all' || req.status === filterStatus;
+    const q = (searchTopic || '').toLowerCase().trim();
     const matchesSearch =
-      req.topic.toLowerCase().includes(searchTopic.toLowerCase()) ||
-      req.description.toLowerCase().includes(searchTopic.toLowerCase()) ||
-      req.requesterName.toLowerCase().includes(searchTopic.toLowerCase());
+      !q ||
+      (req.topic || '').toLowerCase().includes(q) ||
+      (req.description || '').toLowerCase().includes(q) ||
+      (req.requesterName || '').toLowerCase().includes(q);
     return matchesStatus && matchesSearch;
   });
 
