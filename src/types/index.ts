@@ -30,6 +30,7 @@ export interface Paper {
   isVerifiedByAcademy: boolean;
   referenceNumber: string;
   featured?: boolean;
+  telegramLink?: string;
 }
 
 export type RequestStatus = 'pending' | 'in_research' | 'fulfilled';
@@ -64,3 +65,45 @@ export interface AdminContact {
   specialization: string;
   avatarSeed?: string;
 }
+
+export type FatwaCategory =
+  | 'namaz'
+  | 'roza'
+  | 'hajj'
+  | 'zakat'
+  | 'trade_business'
+  | 'amal';
+
+export interface FatwaItem {
+  id: string;
+  fatwaNumber: string;
+  category: FatwaCategory;
+  question: string;
+  questionerName?: string;
+  location?: string;
+  askedDate: string;
+  answeredDate: string;
+  answerSummary: string;
+  answerDetail: string;
+  arabicReference?: string;
+  kitabReference: string;
+  scholarName: string;
+  scholarTitle: string;
+  isVerified: boolean;
+  viewsCount: number;
+  tags: string[];
+}
+
+export interface UserSubmittedFatwa {
+  id: string;
+  category: FatwaCategory;
+  question: string;
+  inquirerName: string;
+  contactNumber: string;
+  contactType: 'whatsapp' | 'telegram' | 'phone';
+  city?: string;
+  isAnonymous: boolean;
+  submittedAt: string;
+  status: 'pending' | 'answered';
+}
+

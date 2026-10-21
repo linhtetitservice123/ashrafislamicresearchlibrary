@@ -48,6 +48,8 @@ export const CATEGORIES_CONFIG: Record<
   },
 };
 
+export const DEFAULT_TELEGRAM_DB_URL = 'https://t.me/IslamicResearchAcademy_DB';
+
 export const INITIAL_PAPERS: Paper[] = [
   {
     id: 'paper-001',
@@ -91,6 +93,7 @@ Crypto ပိုင်ဆိုင်မှုများအား 'မာလ�
     isVerifiedByAcademy: true,
     referenceNumber: 'IRA-FQ-2024-089',
     featured: true,
+    telegramLink: 'https://t.me/IslamicResearchAcademy_DB/12',
   },
   {
     id: 'paper-002',
@@ -137,6 +140,7 @@ Crypto ပိုင်ဆိုင်မှုများအား 'မာလ�
     isVerifiedByAcademy: true,
     referenceNumber: 'IRA-AR-2023-012',
     featured: true,
+    telegramLink: 'https://t.me/IslamicResearchAcademy_DB/15',
   },
   {
     id: 'paper-003',
@@ -179,6 +183,7 @@ Crypto ပိုင်ဆိုင်မှုများအား 'မာလ�
     isVerifiedByAcademy: true,
     referenceNumber: 'IRA-UR-2024-045',
     featured: true,
+    telegramLink: 'https://t.me/IslamicResearchAcademy_DB/22',
   },
   {
     id: 'paper-004',
@@ -227,6 +232,7 @@ Islamic ethics offers a harmonious synthesis of empirical medical progress and s
     isVerifiedByAcademy: true,
     referenceNumber: 'IRA-EN-2024-077',
     featured: true,
+    telegramLink: 'https://t.me/IslamicResearchAcademy_DB/34',
   },
   {
     id: 'paper-005',
@@ -266,6 +272,7 @@ Islamic ethics offers a harmonious synthesis of empirical medical progress and s
     isVerifiedByAcademy: true,
     referenceNumber: 'IRA-QT-2023-033',
     featured: false,
+    telegramLink: 'https://t.me/IslamicResearchAcademy_DB/41',
   },
   {
     id: 'paper-006',
@@ -308,6 +315,7 @@ Islamic ethics offers a harmonious synthesis of empirical medical progress and s
     isVerifiedByAcademy: true,
     referenceNumber: 'IRA-AR-2024-061',
     featured: false,
+    telegramLink: 'https://t.me/IslamicResearchAcademy_DB/55',
   },
   {
     id: 'paper-007',
@@ -334,9 +342,9 @@ Islamic ethics offers a harmonious synthesis of empirical medical progress and s
 دینِ اسلام صرف ظاہری احکام کا مجموعہ نہیں بلکہ باطن کی اصلاح اور روح کی پاکیزگی کا بھی ضامن ہے۔ قرآن مجید میں ارشاد فرمایا گیا: "قَدْ أَفْلَحَ مَن زَكَّاهَا" (بے شک وہ کامیاب ہوا جس نے اپنے نفس کو پاک کیا)۔
 
 اہم مباحث:
-۱۔ تزکیہ نفس کی شرعی ضرورت اور مقام احسان
+၁۔ تزکیہ نفس کی شرعی ضرورت اور مقام احسان
 ۲۔ امام غزالی اور حضرت جنید بغدادی رحمۃ اللہ علیہما کا مسلک و منہج
-۳۔ دل کے امراض: حسد، بغض، ریاکاری، کبر، اور حبِ جاہ کا علاج
+۳۔ دل کے امراض: حسد، بغض၊ ریاکاری، کبر، اور حبِ جاہ کا علاج
 ۴۔ شریعت اور طریقت کی باہمی یکجہتی — بغیر اتباعِ سنت کوئی ولایت نہیں
 
 نتیجہ:
@@ -351,6 +359,7 @@ Islamic ethics offers a harmonious synthesis of empirical medical progress and s
     isVerifiedByAcademy: true,
     referenceNumber: 'IRA-UR-2023-019',
     featured: false,
+    telegramLink: 'https://t.me/IslamicResearchAcademy_DB/63',
   },
   {
     id: 'paper-008',
@@ -390,6 +399,7 @@ Islamic ethics offers a harmonious synthesis of empirical medical progress and s
     isVerifiedByAcademy: true,
     referenceNumber: 'IRA-CR-2024-015',
     featured: false,
+    telegramLink: 'https://t.me/IslamicResearchAcademy_DB/78',
   },
 ];
 

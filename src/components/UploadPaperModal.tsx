@@ -8,6 +8,7 @@ import {
   Sparkles,
   BookMarked,
   ShieldAlert,
+  Send,
 } from 'lucide-react';
 import { LanguageType, Paper, PaperCategory } from '../types';
 import { CATEGORIES_CONFIG } from '../data/initialData';
@@ -35,6 +36,7 @@ export const UploadPaperModal: React.FC<UploadPaperModalProps> = ({
   const [fileName, setFileName] = useState('');
   const [fileSize, setFileSize] = useState('2.4 MB');
   const [filePages, setFilePages] = useState(25);
+  const [telegramLink, setTelegramLink] = useState('');
   const [submitterContact, setSubmitterContact] = useState('');
   const [error, setError] = useState('');
 
@@ -103,6 +105,7 @@ export const UploadPaperModal: React.FC<UploadPaperModalProps> = ({
       fileSize: fileName ? fileSize : '1.8 MB',
       isVerifiedByAcademy: false, // will show as newly uploaded
       referenceNumber: `IRA-SUB-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
+      telegramLink: telegramLink.trim() || undefined,
     };
 
     onPaperUploaded(newPaper);
@@ -329,6 +332,24 @@ export const UploadPaperModal: React.FC<UploadPaperModalProps> = ({
                 className="w-full px-3.5 py-2 rounded-xl border border-[#D9C8B4] focus:outline-none focus:border-[#8B5A2B] text-sm text-[#2C1810]"
               />
             </div>
+          </div>
+
+          {/* Row 8: Telegram Database Direct Link */}
+          <div className="bg-[#EBF7FD] p-3.5 rounded-xl border border-[#BCE4F7]">
+            <label className="block text-xs font-bold text-[#0D628B] mb-1 flex items-center gap-1.5">
+              <Send className="w-4 h-4 text-[#229ED9]" />
+              <span>Telegram Database Link (Telegram စာအုပ်ဒေတာဘေ့စ် တိုက်ရိုက်လင့်ခ်)</span>
+            </label>
+            <input
+              type="url"
+              value={telegramLink}
+              onChange={(e) => setTelegramLink(e.target.value)}
+              placeholder="https://t.me/IslamicResearchAcademy_DB/... သို့မဟုတ် Telegram Post Link"
+              className="w-full px-3.5 py-2.5 rounded-lg border border-[#A6D8F0] focus:outline-none focus:border-[#229ED9] text-xs font-mono text-[#0D4460] bg-white"
+            />
+            <p className="text-[11px] text-[#2B799E] mt-1">
+              * စာဖတ်သူများသည် ဤစာအုပ်ကို နှိပ်လိုက်သည်နှင့် သင်ထည့်ထားသော Telegram Database သို့ တန်းရောက်သွားပါမည်။
+            </p>
           </div>
         </form>
 

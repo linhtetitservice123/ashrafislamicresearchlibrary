@@ -300,6 +300,16 @@ export const GitHubModal: React.FC<GitHubModalProps> = ({ isOpen, onClose }) => 
                   </div>
                 ))}
               </div>
+
+              {/* Vercel Deploy Notes */}
+              <div className="bg-[#EEF7FF] p-3 rounded-xl border border-[#BCE1FF] text-xs text-[#0D4B75] space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-[#0369A1]">
+                  <Globe className="w-3.5 h-3.5" /> Vercel / Netlify တွင် တင်သွင်းပါက:
+                </div>
+                <p>
+                  Vercel ပေါ်တွင် `npm install` error မဖြစ်စေရန် `.npmrc` (`legacy-peer-deps=true`) နှင့် `vercel.json` တို့ကို ကြိုတင်ထည့်သွင်းပြင်ဆင်ပေးထားပြီး ဖြစ်ပါသည်။ Vercel တွင် GitHub repo ကို ချိတ်လိုက်သည်နှင့် အလိုအလျောက် အဆင်ပြေစွာ Build ပြုလုပ်သွားမည် ဖြစ်ပါသည်။
+                </p>
+              </div>
             </div>
           )}
         </div>

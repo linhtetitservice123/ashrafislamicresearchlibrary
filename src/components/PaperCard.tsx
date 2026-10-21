@@ -10,6 +10,8 @@ import {
   MessageCircle,
   Calendar,
   Share2,
+  Send,
+  ExternalLink,
 } from 'lucide-react';
 import { Paper } from '../types';
 import { CATEGORIES_CONFIG } from '../data/initialData';
@@ -20,6 +22,7 @@ interface PaperCardProps {
   onToggleBookmark: (paperId: string) => void;
   onOpenReader: (paper: Paper) => void;
   onOpenAdminInquiry: (paper: Paper) => void;
+  onOpenTelegram: (paper: Paper) => void;
 }
 
 export const PaperCard: React.FC<PaperCardProps> = ({
@@ -28,6 +31,7 @@ export const PaperCard: React.FC<PaperCardProps> = ({
   onToggleBookmark,
   onOpenReader,
   onOpenAdminInquiry,
+  onOpenTelegram,
 }) => {
   const categoryMeta = CATEGORIES_CONFIG[paper.category] || {
     nameMy: paper.category,
@@ -71,10 +75,19 @@ export const PaperCard: React.FC<PaperCardProps> = ({
 
   const langDetails = getLanguageDetails();
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    // When clicking anywhere on the card, immediately open Telegram Database!
+    onOpenTelegram(paper);
+  };
+
   return (
-    <div className="group bg-white rounded-2xl border border-[#E8DEC9] hover:border-[#8B5A2B]/70 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between overflow-hidden relative">
-      {/* Top spine accent in warm brown */}
-      <div className="h-1.5 w-full bg-gradient-to-r from-[#8B5A2B] via-[#C69C6D] to-[#5C361C]"></div>
+    <div
+      onClick={handleCardClick}
+      className="group bg-white rounded-2xl border border-[#E8DEC9] hover:border-[#229ED9] hover:shadow-xl transition-all duration-300 flex flex-col justify-between overflow-hidden relative cursor-pointer"
+      title="ဤစာအုပ်အား နှိပ်လိုက်ပါက Telegram Database စာအုပ်ဖိုင်သို့ တိုက်ရိုက်ရောက်ရှိပါမည်"
+    >
+      {/* Top spine accent in warm brown & telegram blue gradient */}
+      <div className="h-1.5 w-full bg-gradient-to-r from-[#8B5A2B] via-[#229ED9] to-[#5C361C]"></div>
 
       <div className="p-5 flex-1 flex flex-col">
         {/* Badges Bar: Category & Language & Verified Badge */}
@@ -91,7 +104,7 @@ export const PaperCard: React.FC<PaperCardProps> = ({
             </span>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
             {paper.isVerifiedByAcademy && (
               <span
                 className="inline-flex items-center gap-1 text-[11px] text-[#2E7D4E] bg-[#E8F5E9] px-2 py-0.5 rounded-md font-medium border border-[#C8E6C9]"
@@ -102,11 +115,14 @@ export const PaperCard: React.FC<PaperCardProps> = ({
               </span>
             )}
             <button
-              onClick={() => onToggleBookmark(paper.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleBookmark(paper.id);
+              }}
               className={`p-1.5 rounded-lg transition-colors ${
                 isBookmarked
                   ? 'text-[#8B5A2B] bg-[#F7EFE5]'
-                  : 'text-[#9C8B7E] hover:text-[#5C361C] hover:bg-[#FAF6F0]'
+                  : 'text-[#9C8B7E] hover:text-[#5C361C] hover:bg-[#FAF7F2]'
               }`}
               title={isBookmarked ? 'သိမ်းဆည်းထားပြီး' : 'စာတမ်းသိမ်းဆည်းရန်'}
               aria-label="Bookmark"
@@ -120,13 +136,18 @@ export const PaperCard: React.FC<PaperCardProps> = ({
           </div>
         </div>
 
-        {/* Paper Title with specialized Font */}
+        {/* Paper Title with specialized Font - Clicking directly opens Telegram DB */}
         <h3
-          onClick={() => onOpenReader(paper)}
-          className={`cursor-pointer hover:text-[#8B5A2B] transition-colors line-clamp-2 mb-2 leading-relaxed ${langDetails.titleFont}`}
+          className={`group-hover:text-[#229ED9] transition-colors line-clamp-2 mb-2 leading-relaxed ${langDetails.titleFont}`}
         >
           {paper.title}
         </h3>
+
+        {/* Direct Telegram indicator pill */}
+        <div className="mb-2.5 inline-flex items-center gap-1.5 text-[11px] text-[#0088CC] font-medium font-burmese bg-[#F0F8FD] border border-[#CFE8F8] px-2.5 py-1 rounded-lg w-fit group-hover:bg-[#229ED9] group-hover:text-white transition-colors">
+          <Send className="w-3 h-3 fill-current" />
+          <span>Telegram Database သို့ တန်းသွားရန် နှိပ်ပါ</span>
+        </div>
 
         {/* Original Script if available (e.g. Arabic title alongside Burmese) */}
         {paper.titleOriginalScript && paper.titleOriginalScript !== paper.title && (
@@ -199,24 +220,46 @@ export const PaperCard: React.FC<PaperCardProps> = ({
         </div>
       </div>
 
-      {/* Action Buttons Bar */}
-      <div className="bg-[#FAF7F2] px-4 py-2.5 border-t border-[#E8DEC9] flex items-center justify-between gap-2">
+      {/* Action Buttons Bar: Direct Telegram DB button + Web preview + WhatsApp inquiry */}
+      <div className="bg-[#FAF7F2] px-4 py-3 border-t border-[#E8DEC9] flex items-center justify-between gap-2" onClick={(e) => e.stopPropagation()}>
+        {/* Telegram Direct Database Button */}
         <button
-          onClick={() => onOpenReader(paper)}
-          className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-[#8B5A2B] hover:bg-[#6E421C] text-white rounded-xl text-xs sm:text-sm font-burmese font-medium shadow-sm transition-all"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenTelegram(paper);
+          }}
+          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 bg-[#229ED9] hover:bg-[#1B8BBF] active:scale-[0.98] text-white rounded-xl text-xs sm:text-sm font-burmese font-semibold shadow-sm transition-all"
+          title="Telegram Database တွင် စာအုပ်ကို တိုက်ရိုက်ဖတ်ရှု/ဒေါင်းလုဒ်ယူရန်"
+        >
+          <Send className="w-4 h-4 fill-white" />
+          <span>Telegram တွင် ဖတ်မည်</span>
+          <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+        </button>
+
+        {/* Web Preview Button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenReader(paper);
+          }}
+          className="p-2.5 bg-white hover:bg-[#F4ECE1] text-[#633A18] rounded-xl border border-[#D9C4AC] transition-colors"
+          title="ဝဘ်ဆိုက်ပေါ်တွင် အမြန်ဖတ်ရှုရန် (Web Preview)"
+          aria-label="Web Preview"
         >
           <BookOpen className="w-4 h-4" />
-          <span>ဖတ်ရှုမည် / Read</span>
         </button>
 
         {/* WhatsApp Inquiry for this specific paper */}
         <button
-          onClick={() => onOpenAdminInquiry(paper)}
-          className="flex items-center justify-center gap-1.5 py-2 px-3 bg-[#EAF7EE] hover:bg-[#D5EFE0] text-[#1B5E34] border border-[#BDE5CB] rounded-xl text-xs font-burmese font-medium transition-colors"
-          title="ဤစာတမ်းနှင့်ပတ်သက်၍ Admin အား WhatsApp ဖြင့် တိုက်ရိုက်မေးမြန်းရန်"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenAdminInquiry(paper);
+          }}
+          className="p-2.5 bg-[#EAF7EE] hover:bg-[#D5EFE0] text-[#1B5E34] border border-[#BDE5CB] rounded-xl transition-colors"
+          title="ဤစာတမ်းနှင့်ပတ်သက်၍ Admin အား WhatsApp ဖြင့် မေးရန်"
+          aria-label="WhatsApp Inquiry"
         >
           <MessageCircle className="w-4 h-4 text-[#22C55E]" />
-          <span className="hidden sm:inline">မေးမြန်းမည်</span>
         </button>
       </div>
     </div>

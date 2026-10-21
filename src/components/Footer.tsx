@@ -8,6 +8,7 @@ interface FooterProps {
   openAdminModal: () => void;
   openUploadModal: () => void;
   openRequestModal: () => void;
+  openFatwaSection?: () => void;
 }
 
 export const Footer: React.FC<FooterProps> = ({
@@ -15,6 +16,7 @@ export const Footer: React.FC<FooterProps> = ({
   openAdminModal,
   openUploadModal,
   openRequestModal,
+  openFatwaSection,
 }) => {
   return (
     <footer className="bg-[#1C0F08] border-t border-[#3E2111] text-[#EAD8C7] font-burmese">
@@ -70,6 +72,16 @@ export const Footer: React.FC<FooterProps> = ({
               အကယ်ဒမီ ဝန်ဆောင်မှုများ
             </h4>
             <ul className="space-y-2 text-xs text-[#D9C4AC]">
+              {openFatwaSection && (
+                <li>
+                  <button
+                    onClick={openFatwaSection}
+                    className="hover:text-white hover:underline text-left text-[#D9A86B] font-semibold"
+                  >
+                    • အစ္စလာမ့် ဓမ္မသတ် ဖသ်ဝါ မေးမြန်း/ဖတ်ရှုရန်
+                  </button>
+                </li>
+              )}
               <li>
                 <button
                   onClick={openUploadModal}

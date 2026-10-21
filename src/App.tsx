@@ -21,9 +21,22 @@ import {
   Layers,
   ArrowUpDown,
   Flame,
+  Send,
+  FolderKanban,
+  LayoutGrid,
+  ExternalLink,
+  ChevronRight,
+  ShieldCheck,
+  Compass,
+  Scroll,
+  Scale,
+  Landmark,
+  HeartHandshake,
+  Globe,
+  Settings,
 } from 'lucide-react';
 import { LanguageType, Paper, PaperCategory, PaperRequest } from './types';
-import { INITIAL_PAPERS, INITIAL_REQUESTS, CATEGORIES_CONFIG } from './data/initialData';
+import { INITIAL_PAPERS, INITIAL_REQUESTS, CATEGORIES_CONFIG, DEFAULT_TELEGRAM_DB_URL } from './data/initialData';
 import { Header } from './components/Header';
 import { HeroSection } from './components/HeroSection';
 import { PaperCard } from './components/PaperCard';
@@ -34,6 +47,8 @@ import { PaperRequestsBoard } from './components/PaperRequestsBoard';
 import { AdminContactSection } from './components/AdminContactSection';
 import { AdminContactsModal } from './components/AdminContactsModal';
 import { GitHubModal } from './components/GitHubModal';
+import { TelegramConfigModal } from './components/TelegramConfigModal';
+import { FatwaSection } from './components/FatwaSection';
 import { Footer } from './components/Footer';
 
 export default function App() {
@@ -79,12 +94,25 @@ export default function App() {
     return ['paper-001', 'paper-004'];
   });
 
+  // Telegram Database base URL (configurable by user/admin)
+  const [telegramDbUrl, setTelegramDbUrl] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('ira_telegram_db_url');
+      if (saved) return saved;
+    } catch (e) {
+      console.error(e);
+    }
+    return DEFAULT_TELEGRAM_DB_URL;
+  });
+
   // UI state
-  const [currentTab, setCurrentTab] = useState<'papers' | 'requests' | 'bookmarks' | 'contact'>('papers');
+  const [currentTab, setCurrentTab] = useState<'papers' | 'fatwa' | 'requests' | 'bookmarks' | 'contact'>('papers');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<PaperCategory | 'all'>('all');
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageType | 'all'>('all');
   const [sortBy, setSortBy] = useState<'recent' | 'popular' | 'downloads' | 'pages'>('recent');
+  // View mode: 'categories' separates books cleanly into distinct category shelves
+  const [viewMode, setViewMode] = useState<'categories' | 'grid'>('categories');
 
   // Modals
   const [readerPaper, setReaderPaper] = useState<Paper | null>(null);
@@ -92,6 +120,7 @@ export default function App() {
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isGitHubModalOpen, setIsGitHubModalOpen] = useState(false);
+  const [isTelegramModalOpen, setIsTelegramModalOpen] = useState(false);
   const [adminInquiryTopic, setAdminInquiryTopic] = useState('');
 
   // Notification Toast
@@ -126,6 +155,14 @@ export default function App() {
       console.error(e);
     }
   }, [bookmarks]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ira_telegram_db_url', telegramDbUrl);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [telegramDbUrl]);
 
   // Toggle Bookmark
   const handleToggleBookmark = (paperId: string) => {
@@ -166,6 +203,18 @@ export default function App() {
   const handleOpenAdminInquiryWithTopic = (topic: string) => {
     setAdminInquiryTopic(topic);
     setIsAdminModalOpen(true);
+  };
+
+  // Direct Telegram Database redirect: Immediately launches Telegram book post or DB channel!
+  const handleOpenTelegram = (paper: Paper) => {
+    const url = paper.telegramLink || telegramDbUrl;
+    setPapers((prev) =>
+      (Array.isArray(prev) ? prev : []).map((p) =>
+        p && p.id === paper.id ? { ...p, readCount: (p.readCount || 0) + 1 } : p
+      )
+    );
+    showToast(`"${paper.title.substring(0, 24)}..." အား Telegram Database တွင် ဖွင့်နေပါသည် ✈️`);
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   // Reader Open
@@ -248,12 +297,49 @@ export default function App() {
     return result;
   }, [papers, bookmarks, currentTab, selectedCategory, selectedLanguage, searchQuery, sortBy]);
 
+  // Grouped by categories map for "စာအုပ်တွေကို category တွေသပ်သပ်ခွဲထားမယ်"
+  const categorizedPapersMap = useMemo(() => {
+    const map: Record<string, Paper[]> = {};
+    Object.keys(CATEGORIES_CONFIG).forEach((catKey) => {
+      map[catKey] = [];
+    });
+
+    filteredPapers.forEach((paper) => {
+      if (paper && map[paper.category]) {
+        map[paper.category].push(paper);
+      }
+    });
+
+    return map;
+  }, [filteredPapers]);
+
+  // Helper to get category icon component
+  const getCategoryIcon = (iconName: string) => {
+    switch (iconName) {
+      case 'BookOpen':
+        return <BookOpen className="w-5 h-5" />;
+      case 'Scroll':
+        return <Scroll className="w-5 h-5" />;
+      case 'Scale':
+        return <Scale className="w-5 h-5" />;
+      case 'Landmark':
+        return <Landmark className="w-5 h-5" />;
+      case 'Compass':
+        return <Compass className="w-5 h-5" />;
+      case 'HeartHandshake':
+        return <HeartHandshake className="w-5 h-5" />;
+      case 'Globe':
+      default:
+        return <Globe className="w-5 h-5" />;
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF7F2] text-[#2C1810]">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 bg-[#26150C] text-[#FAF7F2] border border-[#8B5A2B] px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs sm:text-sm font-burmese animate-bounce">
-          <CheckCircle className="w-4 h-4 text-[#4ADE80] shrink-0" />
+        <div className="fixed top-5 right-5 z-50 bg-[#26150C] text-[#FAF7F2] border border-[#229ED9] px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs sm:text-sm font-burmese animate-bounce">
+          <Send className="w-4 h-4 text-[#229ED9] fill-current shrink-0" />
           <span>{toastMessage}</span>
           <button
             onClick={() => setToastMessage(null)}
@@ -275,6 +361,7 @@ export default function App() {
           setIsAdminModalOpen(true);
         }}
         openGitHubModal={() => setIsGitHubModalOpen(true)}
+        openTelegramModal={() => setIsTelegramModalOpen(true)}
         bookmarkCount={bookmarks.length}
       />
 
@@ -291,6 +378,7 @@ export default function App() {
             setAdminInquiryTopic('');
             setIsAdminModalOpen(true);
           }}
+          openFatwaTab={() => setCurrentTab('fatwa')}
           totalPapers={papers.length}
         />
       )}
@@ -300,6 +388,48 @@ export default function App() {
         {/* TAB 1: PAPERS REPOSITORY & BOOKMARKS */}
         {(currentTab === 'papers' || currentTab === 'bookmarks') && (
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 font-burmese">
+            {/* Direct Telegram Database Access Banner */}
+            <div className="mb-6 bg-gradient-to-r from-[#0C384D] via-[#155370] to-[#1C698D] text-white rounded-2xl p-4 sm:p-5 shadow-lg border border-[#38A4D8]/40 flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center shrink-0 border border-white/20">
+                  <Send className="w-6 h-6 fill-white text-white animate-pulse" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-sm sm:text-base">
+                      တရားဝင် Telegram စာအုပ် Database စနစ်
+                    </span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#229ED9] text-white">
+                      Direct Database
+                    </span>
+                  </div>
+                  <p className="text-xs sm:text-sm text-white/80 mt-0.5">
+                    စာအုပ်တိုင်းကို နှိပ်လိုက်သည်နှင့် <strong>Telegram Database</strong> ထဲသို့ တိုက်ရိုက်ရောက်ရှိ၍ ဖတ်ရှုဒေါင်းလုဒ် ရယူနိုင်ပါသည်။
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 w-full md:w-auto shrink-0 justify-end">
+                <button
+                  onClick={() => setIsTelegramModalOpen(true)}
+                  className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-colors"
+                  title="Telegram Database လင့်ခ် ပြင်ဆင်ရန်"
+                >
+                  <Settings className="w-4 h-4" />
+                </button>
+                <a
+                  href={telegramDbUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-[#229ED9] hover:bg-[#1B8BBF] text-white rounded-xl text-xs sm:text-sm font-semibold shadow transition-all active:scale-95"
+                >
+                  <Send className="w-4 h-4 fill-white" />
+                  <span>Telegram Database သို့ သွားမည်</span>
+                  <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+                </a>
+              </div>
+            </div>
+
             {/* Header info bar for Bookmarks tab */}
             {currentTab === 'bookmarks' && (
               <div className="mb-6 p-4 bg-white rounded-2xl border border-[#DFD1BF] shadow-sm flex items-center justify-between">
@@ -307,7 +437,7 @@ export default function App() {
                   <Bookmark className="w-5 h-5 fill-[#8B5A2B]" />
                   <div>
                     <h2 className="text-lg font-bold text-[#2C1810]">
-                      သင်သိမ်းဆည်းထားသော စာတမ်းများ ({bookmarks.length})
+                      သင်သိမ်းဆည်းထားသော စာအုပ်စာတမ်းများ ({bookmarks.length})
                     </h2>
                     <p className="text-xs text-[#7A6353]">Saved Research Treatises</p>
                   </div>
@@ -323,7 +453,7 @@ export default function App() {
 
             {/* Filter and Category Controls */}
             <div className="mb-6 space-y-3">
-              {/* Category Pills Slider */}
+              {/* Category Quick Filter Pills */}
               <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
                 <button
                   onClick={() => setSelectedCategory('all')}
@@ -338,29 +468,62 @@ export default function App() {
 
                 {Object.entries(CATEGORIES_CONFIG).map(([key, config]) => {
                   const isSelected = selectedCategory === key;
+                  const count = (categorizedPapersMap[key] || []).length;
                   return (
                     <button
                       key={key}
                       onClick={() => setSelectedCategory(key as PaperCategory)}
-                      className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap transition-all border ${
+                      className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap transition-all border flex items-center gap-1.5 ${
                         isSelected
                           ? 'bg-[#8B5A2B] text-white border-[#8B5A2B] shadow-md'
                           : 'bg-white text-[#5C3B23] border-[#DFD1BF] hover:bg-[#FAF7F2]'
                       }`}
                     >
-                      {config.nameMy}
+                      <span>{config.nameMy}</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isSelected ? 'bg-white/30 text-white' : 'bg-[#FAF7F2] text-[#8C6D53]'}`}>
+                        {count}
+                      </span>
                     </button>
                   );
                 })}
               </div>
 
-              {/* Secondary Controls Bar: Active Filters info, Results Count & Sort Dropdown */}
+              {/* View Mode Toggle & Secondary Controls Bar */}
               <div className="bg-white rounded-xl p-3 border border-[#E5DACB] flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm">
+                {/* View Mode Toggle: Categorized Shelves vs Grid */}
+                <div className="flex items-center gap-1.5 bg-[#FAF7F2] p-1 rounded-xl border border-[#DFD1BF]">
+                  <button
+                    onClick={() => setViewMode('categories')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      viewMode === 'categories'
+                        ? 'bg-[#8B5A2B] text-white shadow-sm'
+                        : 'text-[#6B4B32] hover:text-[#2C1810]'
+                    }`}
+                    title="စာအုပ်များကို ကဏ္ဍအလိုက် သပ်သပ်စီခွဲ၍ စာအုပ်စင်များအဖြစ် ကြည့်ရှုရန်"
+                  >
+                    <FolderKanban className="w-3.5 h-3.5" />
+                    <span>ကဏ္ဍအလိုက် စာအုပ်စင်များ</span>
+                  </button>
+
+                  <button
+                    onClick={() => setViewMode('grid')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                      viewMode === 'grid'
+                        ? 'bg-[#8B5A2B] text-white shadow-sm'
+                        : 'text-[#6B4B32] hover:text-[#2C1810]'
+                    }`}
+                    title="စာအုပ်အားလုံးကို ဇယားကွက်ပြားဖြင့် ကြည့်ရှုရန်"
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    <span>ဇယားကွက်ဖြင့် (Grid)</span>
+                  </button>
+                </div>
+
                 <div className="flex items-center gap-2 text-[#735A46]">
                   <Layers className="w-4 h-4 text-[#8B5A2B]" />
                   <span>
-                    တွေ့ရှိသော စာတမ်းအရေအတွက်:{' '}
-                    <strong className="text-[#2C1810] font-mono text-base">{filteredPapers.length}</strong> ပုဒ်
+                    တွေ့ရှိသော စာအုပ်စာတမ်း:{' '}
+                    <strong className="text-[#2C1810] font-mono text-base">{filteredPapers.length}</strong> အုပ်
                   </span>
                   {(selectedCategory !== 'all' || selectedLanguage !== 'all' || searchQuery) && (
                     <button
@@ -395,13 +558,13 @@ export default function App() {
               </div>
             </div>
 
-            {/* Papers Grid */}
+            {/* Papers Display Area */}
             {filteredPapers.length === 0 ? (
               <div className="bg-white rounded-2xl border border-[#DFD1BF] p-12 text-center text-[#8C7667]">
                 <BookOpen className="w-12 h-12 mx-auto text-[#D4C1AC] mb-3" />
-                <h3 className="text-base font-bold text-[#3B2211]">စာတမ်း ရှာမတွေ့ပါ</h3>
+                <h3 className="text-base font-bold text-[#3B2211]">စာအုပ် ရှာမတွေ့ပါ</h3>
                 <p className="text-xs text-[#7A6353] mt-1 mb-5">
-                  သင်ရှာဖွေလိုသော အချက်အလက်နှင့် ကိုက်ညီသော စာတမ်းမရှိသေးပါ။ အကယ်ဒမီသို့ တောင်းဆိုချက် တင်သွင်းနိုင်ပါသည်။
+                  သင်ရှာဖွေလိုသော အချက်အလက်နှင့် ကိုက်ညီသော စာအုပ်မရှိသေးပါ။ အကယ်ဒမီသို့ စာအုပ်တောင်းဆိုချက် တင်သွင်းနိုင်ပါသည်။
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-3">
                   <button
@@ -418,11 +581,87 @@ export default function App() {
                     onClick={() => setIsRequestModalOpen(true)}
                     className="px-4 py-2 bg-[#8B5A2B] text-white rounded-xl text-xs font-semibold shadow"
                   >
-                    ဤစာတမ်းကို တောင်းဆိုမည်
+                    ဤစာအုပ်ကို တောင်းဆိုမည်
                   </button>
                 </div>
               </div>
+            ) : viewMode === 'categories' && selectedCategory === 'all' ? (
+              /* CATEGORIZED SHELVES VIEW (စာအုပ်များကို ကဏ္ဍအလိုက် သပ်သပ်စီခွဲထားသည့် စာအုပ်စင်များ) */
+              <div className="space-y-10">
+                {Object.entries(CATEGORIES_CONFIG).map(([catKey, config]) => {
+                  const catPapers = categorizedPapersMap[catKey] || [];
+                  if (catPapers.length === 0) return null;
+
+                  return (
+                    <section
+                      key={catKey}
+                      className="bg-[#FCFAF7] rounded-3xl p-5 sm:p-6 border border-[#E8DEC9] shadow-sm relative overflow-hidden"
+                    >
+                      {/* Category Header Shelf Bar */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-6 border-b border-[#E8DEC9]">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-11 h-11 rounded-2xl bg-gradient-to-br ${config.color} text-white flex items-center justify-center shadow-md`}>
+                            {getCategoryIcon(config.iconName)}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-lg sm:text-xl font-bold text-[#34180A]">
+                                {config.nameMy}
+                              </h3>
+                              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#8B5A2B]/10 text-[#7A491C] border border-[#D9C4AC]">
+                                {catPapers.length} အုပ်
+                              </span>
+                            </div>
+                            <p className="text-xs text-[#7A604D]">
+                              {config.nameEn}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Actions for this category */}
+                        <div className="flex items-center gap-2 self-start sm:self-auto">
+                          <button
+                            onClick={() => setSelectedCategory(catKey as PaperCategory)}
+                            className="px-3 py-1.5 bg-white hover:bg-[#F5EDE1] text-[#633A18] rounded-xl border border-[#D9C4AC] text-xs font-semibold flex items-center gap-1 transition-colors"
+                            title="ဤကဏ္ဍတစ်ခုတည်းကို သီးသန့်ရွေးချယ်ကြည့်ရန်"
+                          >
+                            <span>ဤကဏ္ဍသီးသန့်ကြည့်မည်</span>
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </button>
+
+                          <a
+                            href={telegramDbUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1.5 bg-[#229ED9] hover:bg-[#1B8BBF] text-white rounded-xl text-xs font-semibold flex items-center gap-1 transition-colors shadow-sm"
+                            title="ဤကဏ္ဍရှိ စာအုပ်များအား Telegram Database တွင် တိုက်ရိုက်ရှာဖွေရန်"
+                          >
+                            <Send className="w-3 h-3 fill-white" />
+                            <span>Telegram Database</span>
+                          </a>
+                        </div>
+                      </div>
+
+                      {/* Books Cards Grid within this Category */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {catPapers.map((paper) => (
+                          <PaperCard
+                            key={paper.id}
+                            paper={paper}
+                            isBookmarked={bookmarks.includes(paper.id)}
+                            onToggleBookmark={handleToggleBookmark}
+                            onOpenReader={handleOpenReader}
+                            onOpenAdminInquiry={handleOpenAdminInquiryWithPaper}
+                            onOpenTelegram={handleOpenTelegram}
+                          />
+                        ))}
+                      </div>
+                    </section>
+                  );
+                })}
+              </div>
             ) : (
+              /* REGULAR GRID VIEW */
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredPapers.map((paper) => (
                   <PaperCard
@@ -432,6 +671,7 @@ export default function App() {
                     onToggleBookmark={handleToggleBookmark}
                     onOpenReader={handleOpenReader}
                     onOpenAdminInquiry={handleOpenAdminInquiryWithPaper}
+                    onOpenTelegram={handleOpenTelegram}
                   />
                 ))}
               </div>
@@ -439,7 +679,17 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 2: REQUESTS BOARD ("လိုချင်တာတွေကိုတင်နိုင်မယ်") */}
+        {/* TAB 2: FATWA & FIQH ("ဖသ်ဝါနေရာကိုဝင်တာနဲ့မေးမဲ့နေရာရှိရမယ် ဖြေထားပြီးသားတွေကိုလဲအကန့်လေးတွေနဲ့ပြပေးရမယ်") */}
+        {currentTab === 'fatwa' && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <FatwaSection
+              telegramDbUrl={telegramDbUrl}
+              onOpenTelegramModal={() => setIsTelegramModalOpen(true)}
+            />
+          </div>
+        )}
+
+        {/* TAB 3: REQUESTS BOARD ("လိုချင်တာတွေကိုတင်နိုင်မယ်") */}
         {currentTab === 'requests' && (
           <PaperRequestsBoard
             requests={requests}
@@ -461,7 +711,20 @@ export default function App() {
       </main>
 
       {/* Floating Fast WhatsApp Admin Button */}
-      <aside aria-label="Quick WhatsApp Contact" className="fixed bottom-6 right-6 z-30">
+      <aside aria-label="Quick WhatsApp Contact" className="fixed bottom-6 right-6 z-30 flex flex-col items-end gap-3">
+        {/* Floating Telegram Database Fast Button */}
+        <a
+          href={telegramDbUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 px-3.5 py-2.5 bg-[#229ED9] hover:bg-[#1B8BBF] text-white rounded-full shadow-xl border-2 border-white hover:scale-105 transition-all text-xs font-semibold font-burmese"
+          title="Telegram Database တိုက်ရိုက်ဝင်ရောက်ရန်"
+        >
+          <Send className="w-4 h-4 fill-white" />
+          <span className="hidden sm:inline">Telegram Database</span>
+        </a>
+
+        {/* WhatsApp Admin Button */}
         <button
           onClick={() => {
             setAdminInquiryTopic('');
@@ -512,6 +775,16 @@ export default function App() {
         onClose={() => setIsGitHubModalOpen(false)}
       />
 
+      <TelegramConfigModal
+        isOpen={isTelegramModalOpen}
+        onClose={() => setIsTelegramModalOpen(false)}
+        currentUrl={telegramDbUrl}
+        onSaveUrl={(newUrl) => {
+          setTelegramDbUrl(newUrl);
+          showToast('Telegram Database လင့်ခ်အား အောင်မြင်စွာ ပြင်ဆင်ပြီးပါပြီ ✓');
+        }}
+      />
+
       {/* Footer */}
       <Footer
         onSelectCategory={(cat) => {
@@ -525,6 +798,10 @@ export default function App() {
         }}
         openUploadModal={() => setIsUploadModalOpen(true)}
         openRequestModal={() => setIsRequestModalOpen(true)}
+        openFatwaSection={() => {
+          setCurrentTab('fatwa');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
       />
     </div>
   );

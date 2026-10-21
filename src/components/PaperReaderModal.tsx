@@ -16,9 +16,10 @@ import {
   Tag,
   ShieldCheck,
   FileText,
+  Send,
 } from 'lucide-react';
 import { Paper } from '../types';
-import { CATEGORIES_CONFIG } from '../data/initialData';
+import { CATEGORIES_CONFIG, DEFAULT_TELEGRAM_DB_URL } from '../data/initialData';
 
 interface PaperReaderModalProps {
   paper: Paper | null;
@@ -330,22 +331,34 @@ export const PaperReaderModal: React.FC<PaperReaderModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Direct Telegram Database Button */}
+            <a
+              href={paper.telegramLink || DEFAULT_TELEGRAM_DB_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-[#229ED9] hover:bg-[#1B8BBF] text-white rounded-xl text-xs sm:text-sm font-medium font-burmese shadow-sm transition-all"
+              title="Telegram Database တွင် စာအုပ်အား တိုက်ရိုက်ဖတ်ရှု/ရယူရန်"
+            >
+              <Send className="w-4 h-4 fill-white" />
+              <span>Telegram တွင် ဖတ်မည်</span>
+            </a>
+
             {/* WhatsApp Inquiry with Admin */}
             <button
               onClick={() => onOpenAdminInquiry(paper)}
               className="flex items-center gap-2 px-3.5 py-2 bg-[#1B3F2B] hover:bg-[#153423] text-[#E3F8EB] rounded-xl text-xs sm:text-sm font-medium font-burmese border border-[#2E7D4E]/50 shadow-sm transition-all"
             >
               <MessageCircle className="w-4 h-4 text-[#4ADE80]" />
-              <span>Admin အား WhatsApp ဖြင့်မေးမည်</span>
+              <span className="hidden sm:inline">Admin မေးမည်</span>
             </button>
 
             {/* Download Button */}
             <button
               onClick={handleSimulatedDownload}
-              className="flex items-center gap-2 px-4 py-2 bg-[#8B5A2B] hover:bg-[#70421B] text-white rounded-xl text-xs sm:text-sm font-medium font-burmese shadow-md transition-all"
+              className="flex items-center gap-2 px-3.5 py-2 bg-[#8B5A2B] hover:bg-[#70421B] text-white rounded-xl text-xs sm:text-sm font-medium font-burmese shadow-md transition-all"
             >
               <Download className="w-4 h-4" />
-              <span>{downloadSuccess ? 'ဒေါင်းလုဒ်ပြီးပါပြီ ✓' : `စာတမ်းဒေါင်းလုဒ် (${paper.fileFormat})`}</span>
+              <span>{downloadSuccess ? 'ဒေါင်းလုဒ်ပြီးပါပြီ ✓' : `ဒေါင်းလုဒ် (${paper.fileFormat})`}</span>
             </button>
           </div>
         </div>

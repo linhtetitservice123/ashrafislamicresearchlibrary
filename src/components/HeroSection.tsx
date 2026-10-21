@@ -9,6 +9,7 @@ import {
   Globe2,
   Users,
   Sparkles,
+  ShieldCheck,
 } from 'lucide-react';
 import { LanguageType } from '../types';
 
@@ -20,6 +21,7 @@ interface HeroSectionProps {
   openUploadModal: () => void;
   openRequestModal: () => void;
   openAdminModal: () => void;
+  openFatwaTab?: () => void;
   totalPapers: number;
 }
 
@@ -31,6 +33,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   openUploadModal,
   openRequestModal,
   openAdminModal,
+  openFatwaTab,
   totalPapers,
 }) => {
   const languages: { id: LanguageType | 'all'; label: string; script: string; fontClass: string }[] = [
@@ -126,6 +129,16 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
 
         {/* Action CTAs in Hero */}
         <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 mb-10">
+          {openFatwaTab && (
+            <button
+              onClick={openFatwaTab}
+              className="flex items-center gap-2 px-5 py-3 bg-[#402312] hover:bg-[#2C180E] text-[#FDEBD0] font-bold rounded-xl shadow-lg border-2 border-[#D9A86B] transition-all font-burmese text-sm group ring-2 ring-[#D9A86B]/30"
+            >
+              <ShieldCheck className="w-4 h-4 text-[#D9A86B] group-hover:scale-110 transition-transform" />
+              <span>ဖသ်ဝါ မေးမြန်း/ဖတ်ရှုရန် (Fatwa & Fiqh)</span>
+            </button>
+          )}
+
           <button
             onClick={openUploadModal}
             className="flex items-center gap-2 px-5 py-3 bg-[#8B5A2B] hover:bg-[#73431B] text-white font-medium rounded-xl shadow-lg border border-[#D9A86B]/40 transition-all font-burmese text-sm group"

@@ -10,6 +10,8 @@ import {
   MessageCircle,
   Sparkles,
   Github,
+  Send,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -19,6 +21,7 @@ interface HeaderProps {
   openRequestModal: () => void;
   openAdminModal: () => void;
   openGitHubModal: () => void;
+  openTelegramModal?: () => void;
   bookmarkCount: number;
 }
 
@@ -29,12 +32,14 @@ export const Header: React.FC<HeaderProps> = ({
   openRequestModal,
   openAdminModal,
   openGitHubModal,
+  openTelegramModal,
   bookmarkCount,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navItems = [
     { id: 'papers', label: 'စာတမ်းများ', labelEn: 'Papers Repository', icon: BookOpen },
+    { id: 'fatwa', label: 'ဖသ်ဝါနှင့် ဓမ္မသတ်', labelEn: 'Fatwa & Fiqh', icon: ShieldCheck },
     { id: 'requests', label: 'စာတမ်းတောင်းဆိုချက်များ', labelEn: 'Requests Board', icon: FileQuestion },
     { id: 'bookmarks', label: 'သိမ်းဆည်းထားသည်များ', labelEn: 'Saved', icon: Bookmark, badge: bookmarkCount },
     { id: 'contact', label: 'Admin ဆက်သွယ်ရန်', labelEn: 'Contact Admins', icon: PhoneCall },
@@ -125,8 +130,19 @@ export const Header: React.FC<HeaderProps> = ({
             })}
           </nav>
 
-          {/* Action CTAs: GitHub Guide, Upload Paper & WhatsApp Admin Direct button */}
+          {/* Action CTAs: Telegram DB, GitHub Guide, Upload Paper & WhatsApp Admin Direct button */}
           <div className="hidden lg:flex items-center gap-2.5">
+            {openTelegramModal && (
+              <button
+                onClick={openTelegramModal}
+                className="flex items-center gap-1.5 px-3 py-2 bg-[#229ED9]/20 hover:bg-[#229ED9]/30 text-[#8CE0FF] hover:text-white text-xs font-semibold rounded-lg border border-[#229ED9]/50 transition-all font-burmese shadow-sm"
+                title="Telegram စာအုပ် Database စနစ် ချိတ်ဆက်မှု"
+              >
+                <Send className="w-4 h-4 fill-current text-[#229ED9]" />
+                <span>Telegram DB</span>
+              </button>
+            )}
+
             <button
               onClick={openGitHubModal}
               className="flex items-center gap-1.5 px-3 py-2 bg-white/10 hover:bg-white/15 text-[#EAD8B5] text-xs font-medium rounded-lg border border-white/20 transition-all font-burmese"
@@ -212,6 +228,18 @@ export const Header: React.FC<HeaderProps> = ({
           })}
 
           <div className="pt-3 border-t border-[#3B1F0E] space-y-2">
+            {openTelegramModal && (
+              <button
+                onClick={() => {
+                  openTelegramModal();
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full flex items-center justify-center gap-2 py-2.5 bg-[#229ED9] hover:bg-[#1B8BBF] text-white rounded-lg text-xs font-burmese font-semibold shadow-sm transition-colors"
+              >
+                <Send className="w-4 h-4 fill-white" />
+                <span>Telegram စာအုပ် Database လင့်ခ် ပြင်ဆင်/ဖွင့်ရန်</span>
+              </button>
+            )}
             <button
               onClick={() => {
                 openGitHubModal();
