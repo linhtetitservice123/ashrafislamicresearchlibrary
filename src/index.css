@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+@layer utilities {
+  .font-urdu {
+    font-family: 'Jameel Noori Nastaleeq', 'Noto Nastaliq Urdu', 'Alvi Nastaleeq', serif;
+    line-height: 2.2;
+    direction: rtl;
+  }
+
+  .font-arabic {
+    font-family: 'Al Qalam', 'AlQalam', 'Amiri', 'Scheherazade New', 'Traditional Arabic', serif;
+    direction: rtl;
+  }
+
+  .font-cinzel {
+    font-family: 'Cinzel', serif;
+    letter-spacing: 0.05em;
+  }
+
+  .font-scholarly {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+
+  .font-burmese {
+    font-family: 'Noto Sans Myanmar', 'Pyidaungsu', 'Padauk', system-ui, sans-serif;
+    line-height: 1.8;
+  }
+}
+
+/* Custom Islamic subtle pattern background */
+.bg-islamic-pattern {
+  background-color: #FAF7F2;
+  background-image: radial-gradient(#8B5A2B 0.65px, transparent 0.65px), radial-gradient(#8B5A2B 0.65px, #FAF7F2 0.65px);
+  background-size: 26px 26px;
+  background-position: 0 0, 13px 13px;
+  background-opacity: 0.06;
+}
+
+.bg-islamic-dark {
+  background-color: #26160F;
+  background-image: radial-gradient(rgba(217, 168, 107, 0.12) 0.75px, transparent 0.75px);
+  background-size: 22px 22px;
+}
+
+/* Custom scrollbar for papers and modal */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F2ECE1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #A67C52;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #7A4B23;
+}

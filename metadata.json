@@ -1,0 +1,6 @@
+{
+  "name": "Islamic Research Academy",
+  "description": "အစ္စလာမ့် သုတေသန အကယ်ဒမီ - သာသနာရေးရာ စာတမ်းများ၊ ကျမ်းစာများ၊ သုတေသနဆောင်းပါးများ လေ့လာဖတ်ရှုနိုင်ခြင်း၊ စာတမ်းတင်သွင်းခြင်းနှင့် မေတ္တာရပ်ခံတောင်းဆိုနိုင်သော ပလက်ဖောင်း",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
