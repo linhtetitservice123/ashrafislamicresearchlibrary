@@ -1,15 +1,12 @@
 import React from 'react';
 import {
   Search,
-  Upload,
-  FileQuestion,
-  MessageCircle,
   BookOpen,
   Award,
   Globe2,
-  Users,
   Sparkles,
   ShieldCheck,
+  MessageCircle,
 } from 'lucide-react';
 import { LanguageType } from '../types';
 
@@ -18,10 +15,8 @@ interface HeroSectionProps {
   setSearchQuery: (q: string) => void;
   selectedLanguage: LanguageType | 'all';
   setSelectedLanguage: (lang: LanguageType | 'all') => void;
-  openUploadModal: () => void;
-  openRequestModal: () => void;
-  openAdminModal: () => void;
   openFatwaTab?: () => void;
+  openAdminModal?: () => void;
   totalPapers: number;
 }
 
@@ -30,10 +25,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   setSearchQuery,
   selectedLanguage,
   setSelectedLanguage,
-  openUploadModal,
-  openRequestModal,
-  openAdminModal,
   openFatwaTab,
+  openAdminModal,
   totalPapers,
 }) => {
   const languages: { id: LanguageType | 'all'; label: string; script: string; fontClass: string }[] = [
@@ -69,9 +62,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
         </h1>
 
         <p className="max-w-3xl mx-auto text-sm sm:text-base text-[#DBC2A6] font-burmese leading-relaxed mb-8">
-          ကုရ်အာန်၊ ဟဒီးစ်၊ ဖိကဟ် ဓမ္မသတ်နှင့် မျက်မှောက်ခေတ် အစ္စလာမ့်လူမှုရေးရာ စာတမ်းများကို တစ်စုတစ်စည်းတည်း
-          လေ့လာဖတ်ရှုနိုင်ပါသည်။ လိုအပ်သော ကျမ်းစာစာတမ်းများကို မေတ္တာရပ်ခံတောင်းဆိုနိုင်ပြီး၊ ကိုယ်တိုင်ရေးသားထားသော
-          စာတမ်းများကိုလည်း လွတ်လပ်စွာ မျှဝေတင်သွင်းနိုင်ပါသည်။
+          ကုရ်အာန်၊ ဟဒီးစ်၊ ဖိကဟ် ဓမ္မသတ်နှင့် အစ္စလာမ့် သာသနာရေးရာ သုတေသနစာတမ်းများကို တစ်စုတစ်စည်းတည်း လေ့လာဖတ်ရှုနိုင်ပါသည်။
+          ဖသ်ဝါ ဓမ္မသတ်များကို မေးမြန်းနိုင်ပြီး ဖြေကြားပြီးသော သုတေသနအဖြေများကို ရှာဖွေဖတ်ရှုနိုင်ပါသည်။
         </p>
 
         {/* Search Bar - Centerpiece */}
@@ -127,41 +119,17 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
           })}
         </div>
 
-        {/* Action CTAs in Hero */}
+        {/* Action CTAs in Hero (Clean and focused: Fatwa Inquiry Button) */}
         <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 mb-10">
           {openFatwaTab && (
             <button
               onClick={openFatwaTab}
-              className="flex items-center gap-2 px-5 py-3 bg-[#402312] hover:bg-[#2C180E] text-[#FDEBD0] font-bold rounded-xl shadow-lg border-2 border-[#D9A86B] transition-all font-burmese text-sm group ring-2 ring-[#D9A86B]/30"
+              className="flex items-center gap-2 px-6 py-3.5 bg-[#402312] hover:bg-[#2C180E] text-[#FDEBD0] font-bold rounded-2xl shadow-xl border-2 border-[#D9A86B] transition-all font-burmese text-sm sm:text-base group ring-2 ring-[#D9A86B]/30 hover:scale-105 active:scale-95"
             >
-              <ShieldCheck className="w-4 h-4 text-[#D9A86B] group-hover:scale-110 transition-transform" />
-              <span>ဖသ်ဝါ မေးမြန်း/ဖတ်ရှုရန် (Fatwa & Fiqh)</span>
+              <ShieldCheck className="w-5 h-5 text-[#D9A86B] group-hover:scale-110 transition-transform" />
+              <span>ဖသ်ဝါ မေးမြန်း/ဖတ်ရှုရန် (Fatwa)</span>
             </button>
           )}
-
-          <button
-            onClick={openUploadModal}
-            className="flex items-center gap-2 px-5 py-3 bg-[#8B5A2B] hover:bg-[#73431B] text-white font-medium rounded-xl shadow-lg border border-[#D9A86B]/40 transition-all font-burmese text-sm group"
-          >
-            <Upload className="w-4 h-4 text-[#FDEBD0] group-hover:-translate-y-0.5 transition-transform" />
-            <span>စာတမ်းသစ် တင်သွင်းမည် (Upload)</span>
-          </button>
-
-          <button
-            onClick={openRequestModal}
-            className="flex items-center gap-2 px-5 py-3 bg-white hover:bg-[#F8F4EE] text-[#42220E] font-medium rounded-xl shadow-md border border-[#D4C3AF] transition-all font-burmese text-sm"
-          >
-            <FileQuestion className="w-4 h-4 text-[#8B5A2B]" />
-            <span>စာတမ်း/ကျမ်း တောင်းဆိုမည် (Request)</span>
-          </button>
-
-          <button
-            onClick={openAdminModal}
-            className="flex items-center gap-2 px-5 py-3 bg-[#1B3F2B] hover:bg-[#153423] text-[#E3F8EB] font-medium rounded-xl shadow-md border border-[#3E9261]/50 transition-all font-burmese text-sm"
-          >
-            <MessageCircle className="w-4 h-4 text-[#4ADE80]" />
-            <span>WhatsApp Admin တိုက်ရိုက်ဆက်သွယ်မည်</span>
-          </button>
         </div>
 
         {/* Quick Academy Stats Card */}
@@ -180,7 +148,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
               <Award className="w-4 h-4" /> စိစစ်အတည်ပြုပြီး
             </div>
             <div className="text-2xl font-bold font-cinzel text-[#2C1810]">
-              100% <span className="text-xs text-[#7A6253] font-normal">Verified</span>
+              100% <span className="text-xs text-[#7A6353] font-normal">Verified</span>
             </div>
           </div>
 

@@ -12,6 +12,7 @@ import {
   Share2,
   Send,
   ExternalLink,
+  Link2,
 } from 'lucide-react';
 import { Paper } from '../types';
 import { CATEGORIES_CONFIG } from '../data/initialData';
@@ -23,6 +24,8 @@ interface PaperCardProps {
   onOpenReader: (paper: Paper) => void;
   onOpenAdminInquiry: (paper: Paper) => void;
   onOpenTelegram: (paper: Paper) => void;
+  onOpenTelegramPostLink?: (paper: Paper) => void;
+  telegramDbUrl?: string;
 }
 
 export const PaperCard: React.FC<PaperCardProps> = ({
@@ -32,7 +35,10 @@ export const PaperCard: React.FC<PaperCardProps> = ({
   onOpenReader,
   onOpenAdminInquiry,
   onOpenTelegram,
+  onOpenTelegramPostLink,
+  telegramDbUrl,
 }) => {
+  const targetTelegramUrl = paper.telegramLink || telegramDbUrl || 'https://t.me/IslamicResearchAcademy_DB';
   const categoryMeta = CATEGORIES_CONFIG[paper.category] || {
     nameMy: paper.category,
     nameEn: paper.category,
@@ -105,6 +111,15 @@ export const PaperCard: React.FC<PaperCardProps> = ({
           </div>
 
           <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            {paper.telegramLink && (
+              <span
+                className="inline-flex items-center gap-1 text-[11px] text-[#0284C7] bg-[#E0F2FE] px-2 py-0.5 rounded-md font-medium border border-[#BAE6FD]"
+                title="Telegram Channel Post ချိတ်ဆက်ပြီး"
+              >
+                <Send className="w-3 h-3 fill-[#0284C7]" />
+                <span className="font-burmese">TG Post</span>
+              </span>
+            )}
             {paper.isVerifiedByAcademy && (
               <span
                 className="inline-flex items-center gap-1 text-[11px] text-[#2E7D4E] bg-[#E8F5E9] px-2 py-0.5 rounded-md font-medium border border-[#C8E6C9]"
@@ -222,19 +237,25 @@ export const PaperCard: React.FC<PaperCardProps> = ({
 
       {/* Action Buttons Bar: Direct Telegram DB button + Web preview + WhatsApp inquiry */}
       <div className="bg-[#FAF7F2] px-4 py-3 border-t border-[#E8DEC9] flex items-center justify-between gap-2" onClick={(e) => e.stopPropagation()}>
-        {/* Telegram Direct Database Button */}
-        <button
+        {/* Telegram Direct Channel / Post Button */}
+        <a
+          href={targetTelegramUrl}
+          target="_blank"
+          rel="noopener noreferrer"
           onClick={(e) => {
             e.stopPropagation();
-            onOpenTelegram(paper);
           }}
-          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 bg-[#229ED9] hover:bg-[#1B8BBF] active:scale-[0.98] text-white rounded-xl text-xs sm:text-sm font-burmese font-semibold shadow-sm transition-all"
-          title="Telegram Database တွင် စာအုပ်ကို တိုက်ရိုက်ဖတ်ရှု/ဒေါင်းလုဒ်ယူရန်"
+          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 bg-[#229ED9] hover:bg-[#1B8BBF] active:scale-[0.98] text-white rounded-xl text-xs sm:text-sm font-burmese font-semibold shadow-sm transition-all group/btn"
+          title={
+            paper.telegramLink
+              ? 'Telegram Channel ရှိ ဤစာအုပ်ပို့စ်သို့ တိုက်ရိုက်ရောက်ရှိပါမည်'
+              : 'Telegram Channel သို့ တိုက်ရိုက်ရောက်ရှိပါမည်'
+          }
         >
-          <Send className="w-4 h-4 fill-white" />
-          <span>Telegram တွင် ဖတ်မည်</span>
+          <Send className="w-4 h-4 fill-white text-white group-hover/btn:scale-110 transition-transform" />
+          <span>{paper.telegramLink ? 'Telegram Post သို့ သွားမည်' : 'Telegram Channel သို့ သွားမည်'}</span>
           <ExternalLink className="w-3.5 h-3.5 opacity-80" />
-        </button>
+        </a>
 
         {/* Web Preview Button */}
         <button
@@ -248,6 +269,21 @@ export const PaperCard: React.FC<PaperCardProps> = ({
         >
           <BookOpen className="w-4 h-4" />
         </button>
+
+        {/* Telegram Post & Web Direct Link button */}
+        {onOpenTelegramPostLink && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenTelegramPostLink(paper);
+            }}
+            className="p-2.5 bg-[#F0F8FD] hover:bg-[#E1F3FD] text-[#0088CC] rounded-xl border border-[#CFE8F8] transition-colors"
+            title="Telegram Post & Web တိုက်ရိုက်လင့်ခ် ထုတ်ယူရန်"
+            aria-label="Telegram Post & Web Link"
+          >
+            <Link2 className="w-4 h-4 text-[#0088CC]" />
+          </button>
+        )}
 
         {/* WhatsApp Inquiry for this specific paper */}
         <button

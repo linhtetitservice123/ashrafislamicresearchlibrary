@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   FileText,
   Send,
+  Link2,
 } from 'lucide-react';
 import { Paper } from '../types';
 import { CATEGORIES_CONFIG, DEFAULT_TELEGRAM_DB_URL } from '../data/initialData';
@@ -26,6 +27,8 @@ interface PaperReaderModalProps {
   onClose: () => void;
   onOpenAdminInquiry: (paper: Paper) => void;
   onPaperDownloaded?: (paperId: string) => void;
+  onOpenTelegramPostLink?: (paper: Paper) => void;
+  telegramDbUrl?: string;
 }
 
 export const PaperReaderModal: React.FC<PaperReaderModalProps> = ({
@@ -33,6 +36,8 @@ export const PaperReaderModal: React.FC<PaperReaderModalProps> = ({
   onClose,
   onOpenAdminInquiry,
   onPaperDownloaded,
+  onOpenTelegramPostLink,
+  telegramDbUrl,
 }) => {
   const [fontSize, setFontSize] = useState<'sm' | 'base' | 'lg' | 'xl'>('base');
   const [readingTheme, setReadingTheme] = useState<'parchment' | 'white' | 'sepia' | 'dark'>('parchment');
@@ -331,16 +336,32 @@ export const PaperReaderModal: React.FC<PaperReaderModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Direct Telegram Database Button */}
+            {/* Telegram Link & Post Generator */}
+            {onOpenTelegramPostLink && (
+              <button
+                onClick={() => onOpenTelegramPostLink(paper)}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-[#F0F8FD] hover:bg-[#E1F3FD] text-[#0088CC] rounded-xl text-xs sm:text-sm font-medium font-burmese border border-[#BDE0FE] shadow-sm transition-all"
+                title="Telegram Post & Web တိုက်ရိုက်လင့်ခ် ထုတ်ယူရန်"
+              >
+                <Link2 className="w-4 h-4 text-[#0088CC]" />
+                <span className="hidden sm:inline">Telegram Link ထုတ်ရန်</span>
+              </button>
+            )}
+
+            {/* Direct Telegram Channel / Post Button */}
             <a
-              href={paper.telegramLink || DEFAULT_TELEGRAM_DB_URL}
+              href={paper.telegramLink || telegramDbUrl || DEFAULT_TELEGRAM_DB_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 px-3.5 py-2 bg-[#229ED9] hover:bg-[#1B8BBF] text-white rounded-xl text-xs sm:text-sm font-medium font-burmese shadow-sm transition-all"
-              title="Telegram Database တွင် စာအုပ်အား တိုက်ရိုက်ဖတ်ရှု/ရယူရန်"
+              title={
+                paper.telegramLink
+                  ? 'Telegram Channel ရှိ ဤစာအုပ်ပို့စ်ဆီသို့ တိုက်ရိုက်ရောက်ရှိပါမည်'
+                  : 'Telegram Channel သို့ တိုက်ရိုက်ရောက်ရှိပါမည်'
+              }
             >
               <Send className="w-4 h-4 fill-white" />
-              <span>Telegram တွင် ဖတ်မည်</span>
+              <span>{paper.telegramLink ? 'Telegram Post ဖွင့်မည် ✈️' : 'Telegram Channel သို့ သွားမည် ✈️'}</span>
             </a>
 
             {/* WhatsApp Inquiry with Admin */}

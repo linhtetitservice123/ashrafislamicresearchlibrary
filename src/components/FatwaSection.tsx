@@ -1,4 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import {
+  saveFatwaInquiryToFirestore,
+  subscribeToFatwaInquiries,
+} from '../services/firestoreService';
 import {
   Compass,
   Moon,
@@ -55,6 +59,7 @@ export const FatwaSection: React.FC<FatwaSectionProps> = ({
   const [activeModalFatwa, setActiveModalFatwa] = useState<FatwaItem | null>(null);
   const [expandedFatwaId, setExpandedFatwaId] = useState<string | null>(null);
   const [copiedFatwaId, setCopiedFatwaId] = useState<string | null>(null);
+  const [expandedInquiryId, setExpandedInquiryId] = useState<string | null>(null);
 
   // View mode: 'shelves' (အကန့်လေးတွေနဲ့ ပြပေးခြင်း) vs 'all'
   const [viewMode, setViewMode] = useState<'shelves' | 'single_category'>('shelves');
@@ -78,6 +83,24 @@ export const FatwaSection: React.FC<FatwaSectionProps> = ({
       return [];
     }
   });
+
+  // Real-time synchronization of fatwa inquiries from Firestore
+  useEffect(() => {
+    const unsubscribe = subscribeToFatwaInquiries((remoteInquiries) => {
+      if (remoteInquiries && remoteInquiries.length > 0) {
+        setSubmittedList((prev) => {
+          const map = new Map<string, UserSubmittedFatwa>();
+          (Array.isArray(prev) ? prev : []).forEach((item) => map.set(item.id, item));
+          remoteInquiries.forEach((item) => map.set(item.id, item));
+          return Array.from(map.values()).sort(
+            (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+          );
+        });
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   const getCategoryIcon = (iconName: string) => {
     switch (iconName) {
@@ -156,6 +179,11 @@ export const FatwaSection: React.FC<FatwaSectionProps> = ({
     } catch (err) {
       console.error(err);
     }
+
+    // Persist to Firestore
+    saveFatwaInquiryToFirestore(newQuestion).catch((err) => {
+      console.warn('Saved locally, Firestore sync error:', err);
+    });
 
     setFormSubmitted(true);
   };
@@ -745,44 +773,98 @@ export const FatwaSection: React.FC<FatwaSectionProps> = ({
           </div>
 
           <div className="space-y-3">
-            {submittedList.map((item) => (
-              <div
-                key={item.id}
-                className="p-4 bg-[#FCFAF7] rounded-2xl border border-[#E3D6C5] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-              >
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded bg-[#8B5A2B]/10 text-[#7A491C] font-bold">
-                      {FATWA_CATEGORIES_CONFIG[item.category]?.nameMy || item.category}
-                    </span>
-                    <span className="text-[#8C6D53]">
-                      ရက်စွဲ: {item.submittedAt}
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold border border-amber-300">
-                      မုဖ်သီထံ စိစစ်ဆဲ
-                    </span>
-                  </div>
-                  <p className="text-sm font-semibold text-[#2C1810]">
-                    {item.question}
-                  </p>
-                  <div className="text-[11px] text-[#7A604D]">
-                    မေးမြန်းသူ: {item.inquirerName} {item.city ? `(${item.city})` : ''}
-                  </div>
-                </div>
+            {submittedList.map((item) => {
+              const isAnswered = item.status === 'answered' || !!item.answerText;
+              const isExpanded = expandedInquiryId === item.id;
 
-                <a
-                  href={`https://wa.me/959777112233?text=${encodeURIComponent(
-                    `မေးမြန်းထားသော ဖသ်ဝါမေးခွန်း အခြေအနေစုံစမ်းရန်:\n${item.question}`
-                  )}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-1.5 bg-[#1B3F2B] text-[#4ADE80] hover:text-white rounded-xl font-bold flex items-center gap-1.5 self-start sm:self-auto shrink-0 transition-colors"
+              return (
+                <div
+                  key={item.id}
+                  className={`p-4 rounded-2xl border transition-all text-xs ${
+                    isAnswered
+                      ? 'bg-emerald-50/60 border-emerald-300'
+                      : 'bg-[#FCFAF7] border-[#E3D6C5]'
+                  }`}
                 >
-                  <MessageCircle className="w-3.5 h-3.5" />
-                  <span>အခြေအနေ စုံစမ်းမည်</span>
-                </a>
-              </div>
-            ))}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="px-2 py-0.5 rounded bg-[#8B5A2B]/10 text-[#7A491C] font-bold">
+                          {FATWA_CATEGORIES_CONFIG[item.category]?.nameMy || item.category}
+                        </span>
+                        <span className="text-[#8C6D53]">
+                          ရက်စွဲ: {item.submittedAt}
+                        </span>
+                        {isAnswered ? (
+                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-300 flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>မုဖ်သီ ဖြေကြားပြီး ✓</span>
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold border border-amber-300">
+                            မုဖ်သီထံ စိစစ်ဆဲ ⏳
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm font-semibold text-[#2C1810]">
+                        {item.question}
+                      </p>
+                      <div className="text-[11px] text-[#7A604D]">
+                        မေးမြန်းသူ: {item.inquirerName} {item.city ? `(${item.city})` : ''}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {item.answerText && (
+                        <button
+                          onClick={() => setExpandedInquiryId(isExpanded ? null : item.id)}
+                          className="px-3 py-1.5 bg-[#1B3F2B] hover:bg-[#153423] text-white rounded-xl font-bold flex items-center gap-1 shadow-sm transition-all"
+                        >
+                          <span>{isExpanded ? 'အဖြေ ဝှက်မည်' : 'ဓမ္မသတ် အဖြေတော် ဖတ်မည်'}</span>
+                          {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        </button>
+                      )}
+
+                      <a
+                        href={`https://wa.me/959777112233?text=${encodeURIComponent(
+                          `မေးမြန်းထားသော ဖသ်ဝါမေးခွန်း အခြေအနေစုံစမ်းရန်:\n${item.question}`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 bg-white text-[#1B3F2B] hover:bg-emerald-50 rounded-xl font-semibold border border-emerald-300 flex items-center gap-1.5 transition-colors"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>မေးမြန်းမည်</span>
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Expandable Official Answer Section */}
+                  {isExpanded && item.answerText && (
+                    <div className="mt-3.5 pt-3.5 border-t border-emerald-200 bg-white rounded-xl p-4 space-y-2 text-xs sm:text-sm animate-fade-in shadow-inner">
+                      <div className="flex items-center justify-between pb-1.5 border-b border-gray-100">
+                        <span className="font-bold text-emerald-800 flex items-center gap-1.5 text-xs sm:text-sm">
+                          <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                          <span>ဒါရုလ်အိဖ်တာအ် တရားဝင် ဓမ္မသတ် အဖြေတော်</span>
+                        </span>
+                        {item.answeredAt && (
+                          <span className="text-[11px] text-gray-500 font-mono">
+                            ရက်စွဲ: {item.answeredAt}
+                          </span>
+                        )}
+                      </div>
+                      <p className="whitespace-pre-line leading-relaxed font-burmese text-[#1C3B28]">
+                        {item.answerText}
+                      </p>
+                      <div className="pt-2 text-xs text-[#5C3B23] space-y-1 border-t border-gray-100 font-medium">
+                        <div>📚 <strong>ကျမ်းကိုး:</strong> {item.kitabReference || 'ဟနဖီ ဖိကဟ်ကျမ်းဂန်များ'}</div>
+                        <div>✍️ <strong>ဖြေကြားသူ:</strong> {item.scholarName || 'ဒါရုလ်အိဖ်တာအ် ဓမ္မသတ်အဖွဲ့'}</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </section>
       )}

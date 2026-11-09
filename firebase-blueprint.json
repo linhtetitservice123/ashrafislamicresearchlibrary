@@ -1,0 +1,97 @@
+{
+  "entities": {
+    "Paper": {
+      "title": "Islamic Research Paper",
+      "description": "Scholarly Islamic research paper or classical Islamic book entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 300 },
+        "titleOriginalScript": { "type": "string", "maxLength": 300 },
+        "author": { "type": "string", "maxLength": 150 },
+        "authorTitle": { "type": "string", "maxLength": 150 },
+        "category": { "type": "string", "maxLength": 64 },
+        "language": { "type": "string", "maxLength": 32 },
+        "publicationYear": { "type": "string", "maxLength": 32 },
+        "abstract": { "type": "string", "maxLength": 4000 },
+        "fullContent": { "type": "string", "maxLength": 100000 },
+        "pages": { "type": "number" },
+        "downloadCount": { "type": "number" },
+        "readCount": { "type": "number" },
+        "uploadedAt": { "type": "string", "maxLength": 64 },
+        "fileFormat": { "type": "string", "maxLength": 16 },
+        "fileSize": { "type": "string", "maxLength": 32 },
+        "isVerifiedByAcademy": { "type": "boolean" },
+        "referenceNumber": { "type": "string", "maxLength": 64 },
+        "telegramLink": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["id", "title", "author", "category", "language", "abstract"]
+    },
+    "PaperRequest": {
+      "title": "Paper Research Request",
+      "description": "User requested book or Islamic research paper topic",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "topic": { "type": "string", "maxLength": 300 },
+        "requesterName": { "type": "string", "maxLength": 150 },
+        "requesterContact": { "type": "string", "maxLength": 100 },
+        "contactType": { "type": "string", "enum": ["whatsapp", "phone", "email"] },
+        "language": { "type": "string", "maxLength": 32 },
+        "category": { "type": "string", "maxLength": 64 },
+        "description": { "type": "string", "maxLength": 3000 },
+        "status": { "type": "string", "enum": ["pending", "in_research", "fulfilled"] },
+        "submittedAt": { "type": "string", "maxLength": 64 },
+        "adminNotes": { "type": "string", "maxLength": 1000 }
+      },
+      "required": ["id", "topic", "requesterName", "requesterContact", "category", "description", "status", "submittedAt"]
+    },
+    "UserSubmittedFatwa": {
+      "title": "Fatwa Inquiry",
+      "description": "Community question submitted for Islamic legal ruling (Fatwa)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "category": { "type": "string", "enum": ["namaz", "roza", "hajj", "zakat", "trade_business", "amal"] },
+        "question": { "type": "string", "maxLength": 4000 },
+        "inquirerName": { "type": "string", "maxLength": 150 },
+        "contactNumber": { "type": "string", "maxLength": 100 },
+        "contactType": { "type": "string", "enum": ["whatsapp", "telegram", "phone"] },
+        "city": { "type": "string", "maxLength": 100 },
+        "isAnonymous": { "type": "boolean" },
+        "submittedAt": { "type": "string", "maxLength": 64 },
+        "status": { "type": "string", "enum": ["pending", "answered"] }
+      },
+      "required": ["id", "category", "question", "inquirerName", "contactNumber", "contactType", "isAnonymous", "submittedAt", "status"]
+    },
+    "AppSetting": {
+      "title": "Application Configuration",
+      "description": "Global application setting such as Telegram Channel URL",
+      "type": "object",
+      "properties": {
+        "key": { "type": "string", "maxLength": 64 },
+        "value": { "type": "string", "maxLength": 500 },
+        "updatedAt": { "type": "string", "maxLength": 64 }
+      },
+      "required": ["key", "value"]
+    }
+  },
+  "firestore": {
+    "/papers/{paperId}": {
+      "schema": "Paper",
+      "description": "Islamic research papers, classical texts, and references"
+    },
+    "/requests/{requestId}": {
+      "schema": "PaperRequest",
+      "description": "Community book and paper request board"
+    },
+    "/fatwa_inquiries/{inquiryId}": {
+      "schema": "UserSubmittedFatwa",
+      "description": "Fatwa questions submitted by community members"
+    },
+    "/settings/{settingId}": {
+      "schema": "AppSetting",
+      "description": "Global app configurations such as Telegram Channel DB link"
+    }
+  }
+}

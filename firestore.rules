@@ -1,0 +1,72 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny all access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    // Papers Collection
+    match /papers/{paperId} {
+      allow get, list: if true;
+      allow create: if isValidId(paperId) &&
+        incoming().keys().hasAll(['id', 'title', 'author', 'category', 'language', 'abstract']) &&
+        incoming().title is string && incoming().title.size() <= 300 &&
+        incoming().author is string && incoming().author.size() <= 150 &&
+        incoming().category is string && incoming().category.size() <= 64 &&
+        incoming().language is string && incoming().language.size() <= 32 &&
+        incoming().abstract is string && incoming().abstract.size() <= 4000;
+      allow update: if isValidId(paperId);
+      allow delete: if isValidId(paperId);
+    }
+
+    // Paper Research Requests Collection
+    match /requests/{requestId} {
+      allow get, list: if true;
+      allow create: if isValidId(requestId) &&
+        incoming().keys().hasAll(['id', 'topic', 'requesterName', 'requesterContact', 'category', 'description', 'status', 'submittedAt']) &&
+        incoming().topic is string && incoming().topic.size() <= 300 &&
+        incoming().requesterName is string && incoming().requesterName.size() <= 150 &&
+        incoming().requesterContact is string && incoming().requesterContact.size() <= 100 &&
+        incoming().description is string && incoming().description.size() <= 3000 &&
+        incoming().status in ['pending', 'in_research', 'fulfilled'];
+      allow update: if isValidId(requestId);
+      allow delete: if isValidId(requestId);
+    }
+
+    // Fatwa Inquiries Collection
+    match /fatwa_inquiries/{inquiryId} {
+      allow get, list: if true;
+      allow create: if isValidId(inquiryId) &&
+        incoming().keys().hasAll(['id', 'category', 'question', 'inquirerName', 'contactNumber', 'contactType', 'isAnonymous', 'submittedAt', 'status']) &&
+        incoming().question is string && incoming().question.size() <= 4000 &&
+        incoming().inquirerName is string && incoming().inquirerName.size() <= 150 &&
+        incoming().contactNumber is string && incoming().contactNumber.size() <= 100 &&
+        incoming().category in ['namaz', 'roza', 'hajj', 'zakat', 'trade_business', 'amal'] &&
+        incoming().contactType in ['whatsapp', 'telegram', 'phone'] &&
+        incoming().status in ['pending', 'answered'];
+      allow update: if isValidId(inquiryId);
+      allow delete: if isValidId(inquiryId);
+    }
+
+    // Organization Team Members / Scholars Collection
+    match /team_members/{memberId} {
+      allow get, list: if true;
+      allow create, update, delete: if isValidId(memberId);
+    }
+
+    // App Settings Collection (Telegram config, Admin PIN, etc.)
+    match /settings/{settingId} {
+      allow get, list: if true;
+      allow create, update, delete: if isValidId(settingId);
+    }
+  }
+}

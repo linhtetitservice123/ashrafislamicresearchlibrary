@@ -105,5 +105,9 @@ export interface UserSubmittedFatwa {
   isAnonymous: boolean;
   submittedAt: string;
   status: 'pending' | 'answered';
+  answerText?: string;
+  kitabReference?: string;
+  scholarName?: string;
+  answeredAt?: string;
 }
 

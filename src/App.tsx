@@ -6,25 +6,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   BookOpen,
-  Filter,
-  Sparkles,
-  Search,
   Bookmark,
-  Share2,
-  FileQuestion,
-  PhoneCall,
-  Upload,
-  MessageCircle,
-  CheckCircle,
-  X,
-  SlidersHorizontal,
-  Layers,
-  ArrowUpDown,
-  Flame,
   Send,
   FolderKanban,
   LayoutGrid,
-  ExternalLink,
   ChevronRight,
   ShieldCheck,
   Compass,
@@ -33,32 +18,55 @@ import {
   Landmark,
   HeartHandshake,
   Globe,
-  Settings,
+  MessageCircle,
+  X,
+  Layers,
+  ArrowUpDown,
 } from 'lucide-react';
-import { LanguageType, Paper, PaperCategory, PaperRequest } from './types';
-import { INITIAL_PAPERS, INITIAL_REQUESTS, CATEGORIES_CONFIG, DEFAULT_TELEGRAM_DB_URL } from './data/initialData';
+import { LanguageType, Paper, PaperCategory, UserSubmittedFatwa, AdminContact } from './types';
+import { INITIAL_PAPERS, INITIAL_ADMIN_CONTACTS, CATEGORIES_CONFIG, DEFAULT_TELEGRAM_DB_URL } from './data/initialData';
 import { Header } from './components/Header';
 import { HeroSection } from './components/HeroSection';
 import { PaperCard } from './components/PaperCard';
 import { PaperReaderModal } from './components/PaperReaderModal';
 import { UploadPaperModal } from './components/UploadPaperModal';
-import { PaperRequestModal } from './components/PaperRequestModal';
-import { PaperRequestsBoard } from './components/PaperRequestsBoard';
 import { AdminContactSection } from './components/AdminContactSection';
 import { AdminContactsModal } from './components/AdminContactsModal';
 import { GitHubModal } from './components/GitHubModal';
 import { TelegramConfigModal } from './components/TelegramConfigModal';
+import { TelegramPostLinkModal } from './components/TelegramPostLinkModal';
 import { FatwaSection } from './components/FatwaSection';
+import { AdminPanel } from './components/AdminPanel';
 import { Footer } from './components/Footer';
+import {
+  savePaperToFirestore,
+  deletePaperFromFirestore,
+  subscribeToPapers,
+  saveTelegramChannelUrlToFirestore,
+  subscribeToTelegramChannelUrl,
+  updatePaperTelegramLinkInFirestore,
+  updateFatwaInquiryStatusInFirestore,
+  answerFatwaInquiryInFirestore,
+  deleteFatwaInquiryFromFirestore,
+  subscribeToFatwaInquiries,
+  saveAdminPinToFirestore,
+  subscribeToAdminPin,
+  saveTeamMemberToFirestore,
+  deleteTeamMemberFromFirestore,
+  subscribeToTeamMembers,
+} from './services/firestoreService';
 
 export default function App() {
-  // Papers state (stored in localStorage)
+  // Papers state (stored in localStorage, filtering out legacy demo mock items)
   const [papers, setPapers] = useState<Paper[]>(() => {
     try {
       const saved = localStorage.getItem('ira_papers');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          // Filter out legacy demo sample papers (paper-001 through paper-007)
+          return parsed.filter((p: Paper) => p && !p.id.startsWith('paper-00'));
+        }
       }
     } catch (e) {
       console.error(e);
@@ -66,18 +74,21 @@ export default function App() {
     return INITIAL_PAPERS;
   });
 
-  // Requests state (stored in localStorage)
-  const [requests, setRequests] = useState<PaperRequest[]>(() => {
+  // Team Members & Phone numbers state (synced with Firestore and localStorage, no demo mock data)
+  const [teamMembers, setTeamMembers] = useState<AdminContact[]>(() => {
     try {
-      const saved = localStorage.getItem('ira_requests');
+      const saved = localStorage.getItem('ira_team_members');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          // Filter out legacy demo contacts if any contain mock names
+          return parsed.filter((m: AdminContact) => m && !m.nameMy?.includes('မုဖ်သီ အုမရ်'));
+        }
       }
     } catch (e) {
       console.error(e);
     }
-    return INITIAL_REQUESTS;
+    return INITIAL_ADMIN_CONTACTS;
   });
 
   // Bookmarks state (stored in localStorage)
@@ -86,15 +97,17 @@ export default function App() {
       const saved = localStorage.getItem('ira_bookmarks');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter((id) => !id.startsWith('paper-00'));
+        }
       }
     } catch (e) {
       console.error(e);
     }
-    return ['paper-001', 'paper-004'];
+    return [];
   });
 
-  // Telegram Database base URL (configurable by user/admin)
+  // Telegram Database base URL (configurable by admin)
   const [telegramDbUrl, setTelegramDbUrl] = useState<string>(() => {
     try {
       const saved = localStorage.getItem('ira_telegram_db_url');
@@ -105,22 +118,44 @@ export default function App() {
     return DEFAULT_TELEGRAM_DB_URL;
   });
 
+  // Admin PIN code state (default: 7860, syncs with Firestore settings)
+  const [adminPin, setAdminPin] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('ira_admin_pin');
+      if (saved && saved.trim()) return saved.trim();
+    } catch (e) {
+      console.error(e);
+    }
+    return '7860';
+  });
+
+  // User submitted Fatwa inquiries state (syncs with Firestore)
+  const [userFatwas, setUserFatwas] = useState<UserSubmittedFatwa[]>(() => {
+    try {
+      const saved = localStorage.getItem('ira_user_fatwas');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return [];
+  });
+
   // UI state
-  const [currentTab, setCurrentTab] = useState<'papers' | 'fatwa' | 'requests' | 'bookmarks' | 'contact'>('papers');
+  const [currentTab, setCurrentTab] = useState<'papers' | 'fatwa' | 'bookmarks' | 'contact' | 'admin'>('papers');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<PaperCategory | 'all'>('all');
   const [selectedLanguage, setSelectedLanguage] = useState<LanguageType | 'all'>('all');
   const [sortBy, setSortBy] = useState<'recent' | 'popular' | 'downloads' | 'pages'>('recent');
-  // View mode: 'categories' separates books cleanly into distinct category shelves
   const [viewMode, setViewMode] = useState<'categories' | 'grid'>('categories');
 
   // Modals
   const [readerPaper, setReaderPaper] = useState<Paper | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isGitHubModalOpen, setIsGitHubModalOpen] = useState(false);
   const [isTelegramModalOpen, setIsTelegramModalOpen] = useState(false);
+  const [isTelegramPostLinkModalOpen, setIsTelegramPostLinkModalOpen] = useState(false);
+  const [telegramPostLinkPaperId, setTelegramPostLinkPaperId] = useState<string | null>(null);
   const [adminInquiryTopic, setAdminInquiryTopic] = useState('');
 
   // Notification Toast
@@ -131,7 +166,31 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Sync to localStorage safely
+  // Check URL query parameters for direct book link (e.g. ?paper=paper-123 or ?book=paper-123)
+  useEffect(() => {
+    const checkUrlForPaper = () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const paperIdFromUrl = params.get('paper') || params.get('book');
+        if (paperIdFromUrl && papers.length > 0) {
+          const matchingPaper = papers.find((p) => p.id === paperIdFromUrl);
+          if (matchingPaper) {
+            setCurrentTab('papers');
+            setReaderPaper(matchingPaper);
+            showToast(`"${matchingPaper.title}" စာအုပ်အား Telegram Direct Link ဖြင့် တိုက်ရိုက်ဖွင့်လှစ်ထားပါသည် ✈️`);
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+
+    checkUrlForPaper();
+    window.addEventListener('popstate', checkUrlForPaper);
+    return () => window.removeEventListener('popstate', checkUrlForPaper);
+  }, [papers]);
+
+  // Sync state to localStorage safely
   useEffect(() => {
     try {
       localStorage.setItem('ira_papers', JSON.stringify(papers));
@@ -142,11 +201,11 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('ira_requests', JSON.stringify(requests));
+      localStorage.setItem('ira_team_members', JSON.stringify(teamMembers));
     } catch (e) {
       console.error(e);
     }
-  }, [requests]);
+  }, [teamMembers]);
 
   useEffect(() => {
     try {
@@ -163,6 +222,192 @@ export default function App() {
       console.error(e);
     }
   }, [telegramDbUrl]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ira_admin_pin', adminPin);
+    } catch (e) {
+      console.error(e);
+    }
+  }, [adminPin]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ira_user_fatwas', JSON.stringify(userFatwas));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [userFatwas]);
+
+  // Firestore real-time synchronization
+  useEffect(() => {
+    const unsubPapers = subscribeToPapers((remotePapers) => {
+      if (remotePapers) {
+        // Filter out legacy demo papers
+        const cleanRemote = remotePapers.filter((p) => p && !p.id.startsWith('paper-00'));
+        setPapers((prev) => {
+          const map = new Map<string, Paper>();
+          (Array.isArray(prev) ? prev : [])
+            .filter((p) => p && !p.id.startsWith('paper-00'))
+            .forEach((p) => map.set(p.id, p));
+          cleanRemote.forEach((p) => map.set(p.id, p));
+          return Array.from(map.values());
+        });
+      }
+    });
+
+    const unsubTeam = subscribeToTeamMembers((remoteMembers) => {
+      if (remoteMembers) {
+        const cleanMembers = remoteMembers.filter((m) => m && !m.nameMy?.includes('မုဖ်သီ အုမရ်'));
+        setTeamMembers(cleanMembers);
+      }
+    });
+
+    const unsubChannelUrl = subscribeToTelegramChannelUrl((remoteUrl) => {
+      if (remoteUrl && remoteUrl.trim()) {
+        setTelegramDbUrl(remoteUrl.trim());
+      }
+    });
+
+    const unsubFatwas = subscribeToFatwaInquiries((remoteFatwas) => {
+      if (remoteFatwas && remoteFatwas.length > 0) {
+        setUserFatwas((prev) => {
+          const map = new Map<string, UserSubmittedFatwa>();
+          (Array.isArray(prev) ? prev : []).forEach((f) => map.set(f.id, f));
+          remoteFatwas.forEach((f) => map.set(f.id, f));
+          return Array.from(map.values()).sort(
+            (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+          );
+        });
+      }
+    });
+
+    const unsubAdminPin = subscribeToAdminPin((remotePin) => {
+      if (remotePin && remotePin.trim()) {
+        setAdminPin(remotePin.trim());
+      }
+    });
+
+    return () => {
+      unsubPapers();
+      unsubTeam();
+      unsubChannelUrl();
+      unsubFatwas();
+      unsubAdminPin();
+    };
+  }, []);
+
+  // Admin Handler: Delete Paper
+  const handleDeletePaper = (paperId: string) => {
+    setPapers((prev) => (Array.isArray(prev) ? prev.filter((p) => p.id !== paperId) : []));
+    deletePaperFromFirestore(paperId).catch((err) =>
+      console.warn('Paper deleted locally, Firestore sync error:', err)
+    );
+    showToast('စာအုပ်အား ဝဘ်ဆိုက်စာရင်းမှ ဖျက်ပစ်ပြီးပါပြီ ✓');
+  };
+
+  // Admin Handler: Save Team Member
+  const handleSaveTeamMember = (member: AdminContact) => {
+    setTeamMembers((prev) => {
+      const safe = Array.isArray(prev) ? prev : [];
+      const exists = safe.some((m) => m.id === member.id);
+      return exists ? safe.map((m) => (m.id === member.id ? member : m)) : [...safe, member];
+    });
+    saveTeamMemberToFirestore(member).catch((err) =>
+      console.warn('Team member saved locally, Firestore error:', err)
+    );
+    showToast(`"${member.nameMy}" အချက်အလက်များအား သိမ်းဆည်းပြီးပါပြီ ✓`);
+  };
+
+  // Admin Handler: Delete Team Member
+  const handleDeleteTeamMember = (memberId: string) => {
+    setTeamMembers((prev) => (Array.isArray(prev) ? prev.filter((m) => m.id !== memberId) : []));
+    deleteTeamMemberFromFirestore(memberId).catch((err) =>
+      console.warn('Team member deleted locally, Firestore error:', err)
+    );
+    showToast('အဖွဲ့ဝင်အား စာရင်းမှ ဖယ်ရှားလိုက်ပါပြီ ✓');
+  };
+
+  // Admin Handler: Update Fatwa Status
+  const handleUpdateFatwaStatus = (id: string, status: 'pending' | 'answered') => {
+    setUserFatwas((prev) =>
+      (Array.isArray(prev) ? prev : []).map((f) =>
+        f.id === id ? { ...f, status } : f
+      )
+    );
+    updateFatwaInquiryStatusInFirestore(id, status).catch((err) =>
+      console.warn('Fatwa updated locally, Firestore sync error:', err)
+    );
+    showToast('ဖသ်ဝါမေးခွန်း အခြေအနေအား ပြင်ဆင်ပြီးပါပြီ ✓');
+  };
+
+  // Admin Handler: Answer Fatwa Question Directly
+  const handleAnswerFatwa = (
+    id: string,
+    answerText: string,
+    kitabReference?: string,
+    scholarName?: string
+  ) => {
+    const answeredAt = new Date().toISOString().split('T')[0];
+    setUserFatwas((prev) =>
+      (Array.isArray(prev) ? prev : []).map((f) =>
+        f.id === id
+          ? {
+              ...f,
+              status: 'answered',
+              answerText,
+              kitabReference: kitabReference || 'ဟနဖီ ဖိကဟ်ကျမ်းဂန်များ',
+              scholarName: scholarName || 'ဒါရုလ်အိဖ်တာအ် ဓမ္မသတ်အဖွဲ့',
+              answeredAt,
+            }
+          : f
+      )
+    );
+    answerFatwaInquiryInFirestore(id, answerText, kitabReference, scholarName).catch((err) =>
+      console.warn('Fatwa answered locally, Firestore sync error:', err)
+    );
+    showToast('ဖသ်ဝါ ဓမ္မသတ် အဖြေတော်အား အောင်မြင်စွာ သိမ်းဆည်း/ဖြေကြားပြီးပါပြီ ✓');
+  };
+
+  // Admin Handler: Delete Fatwa
+  const handleDeleteFatwa = (id: string) => {
+    setUserFatwas((prev) => (Array.isArray(prev) ? prev.filter((f) => f.id !== id) : []));
+    deleteFatwaInquiryFromFirestore(id).catch((err) =>
+      console.warn('Fatwa deleted locally, Firestore sync error:', err)
+    );
+    showToast('ဖသ်ဝါမေးခွန်းအား ဖျက်ပစ်ပြီးပါပြီ ✓');
+  };
+
+  // Admin Handler: Change Admin PIN
+  const handleSaveAdminPin = (newPin: string) => {
+    setAdminPin(newPin);
+    saveAdminPinToFirestore(newPin).catch((err) =>
+      console.warn('Admin PIN saved locally, Firestore sync error:', err)
+    );
+    showToast('Admin PIN ကုဒ် အသစ်အား သိမ်းဆည်းပြီးပါပြီ ✓');
+  };
+
+  // Handler to update a book's specific Telegram post link
+  const handleUpdatePaperTelegramLink = (paperId: string, telegramLink: string) => {
+    setPapers((prev) =>
+      (Array.isArray(prev) ? prev : []).map((p) =>
+        p && p.id === paperId ? { ...p, telegramLink } : p
+      )
+    );
+    updatePaperTelegramLinkInFirestore(paperId, telegramLink).catch((err) =>
+      console.warn('Paper telegram link saved locally, Firestore sync error:', err)
+    );
+    showToast('စာအုပ်အတွက် Telegram Channel Post လင့်ခ်အား သိမ်းဆည်းပြီးပါပြီ ✓');
+  };
+
+  // Handler to save overall Telegram Channel URL
+  const handleSaveTelegramDbUrl = (newUrl: string) => {
+    setTelegramDbUrl(newUrl);
+    saveTelegramChannelUrlToFirestore(newUrl).catch((err) =>
+      console.warn('Channel URL saved locally, Firestore sync error:', err)
+    );
+    showToast('Telegram Channel လင့်ခ်အား အောင်မြင်စွာ ပြင်ဆင်ပြီးပါပြီ ✓');
+  };
 
   // Toggle Bookmark
   const handleToggleBookmark = (paperId: string) => {
@@ -182,15 +427,16 @@ export default function App() {
   // Upload handler
   const handlePaperUploaded = (newPaper: Paper) => {
     setPapers((prev) => [newPaper, ...(Array.isArray(prev) ? prev : [])]);
+    savePaperToFirestore(newPaper).catch((err) => console.warn('Saved locally, Firestore sync error:', err));
     showToast(`"${newPaper.title}" စာတမ်းအား အောင်မြင်စွာ တင်သွင်းပြီးပါပြီ ✓`);
-    setReaderPaper(newPaper);
+    handleOpenReader(newPaper);
   };
 
-  // Request handler
-  const handleRequestSubmitted = (newReq: PaperRequest) => {
-    setRequests((prev) => [newReq, ...(Array.isArray(prev) ? prev : [])]);
-    showToast('စာတမ်းတောင်းဆိုချက်ကို လက်ခံရရှိပါပြီ။ ပညာရှင်များက စစ်ဆေးရှာဖွေပေးပါမည် ✓');
-    setCurrentTab('requests');
+  // Add new paper directly from Telegram Post Sync
+  const handleAddNewPaperFromTelegram = (newPaper: Paper) => {
+    setPapers((prev) => [newPaper, ...(Array.isArray(prev) ? prev : [])]);
+    savePaperToFirestore(newPaper).catch((err) => console.warn('Saved locally, Firestore sync error:', err));
+    showToast(`"${newPaper.title}" အား ဝဘ်ဆိုက်စာကြည့်တိုက်ထဲသို့ အောင်မြင်စွာ ထည့်သွင်းပြီးပါပြီ ✓`);
   };
 
   // Open Admin Inquiry with specific paper
@@ -199,13 +445,7 @@ export default function App() {
     setIsAdminModalOpen(true);
   };
 
-  // Open Admin Inquiry with topic
-  const handleOpenAdminInquiryWithTopic = (topic: string) => {
-    setAdminInquiryTopic(topic);
-    setIsAdminModalOpen(true);
-  };
-
-  // Direct Telegram Database redirect: Immediately launches Telegram book post or DB channel!
+  // Direct Telegram Database redirect
   const handleOpenTelegram = (paper: Paper) => {
     const url = paper.telegramLink || telegramDbUrl;
     setPapers((prev) =>
@@ -225,6 +465,26 @@ export default function App() {
       )
     );
     setReaderPaper(paper);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('paper', paper.id);
+      window.history.replaceState({}, '', url.toString());
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Reader Close
+  const handleCloseReader = () => {
+    setReaderPaper(null);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('paper');
+      url.searchParams.delete('book');
+      window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   // Download increment
@@ -234,17 +494,6 @@ export default function App() {
         p && p.id === paperId ? { ...p, downloadCount: (p.downloadCount || 0) + 1 } : p
       )
     );
-  };
-
-  // View fulfilled paper
-  const handleViewFulfilledPaper = (paperId: string) => {
-    const list = Array.isArray(papers) ? papers : [];
-    const found = list.find((p) => p && p.id === paperId);
-    if (found) {
-      setReaderPaper(found);
-    } else {
-      showToast('မော်ကွန်းတိုက်မှ စာတမ်းအား ဖွင့်လှစ်နေပါသည်...');
-    }
   };
 
   // Filter & Search Logic safely
@@ -288,7 +537,6 @@ export default function App() {
       if (sortBy === 'popular') return (b.readCount || 0) - (a.readCount || 0);
       if (sortBy === 'downloads') return (b.downloadCount || 0) - (a.downloadCount || 0);
       if (sortBy === 'pages') return (b.pages || 0) - (a.pages || 0);
-      // Default: recent
       const dateB = b.uploadedAt ? new Date(b.uploadedAt).getTime() : 0;
       const dateA = a.uploadedAt ? new Date(a.uploadedAt).getTime() : 0;
       return dateB - dateA;
@@ -297,7 +545,7 @@ export default function App() {
     return result;
   }, [papers, bookmarks, currentTab, selectedCategory, selectedLanguage, searchQuery, sortBy]);
 
-  // Grouped by categories map for "စာအုပ်တွေကို category တွေသပ်သပ်ခွဲထားမယ်"
+  // Grouped by categories map
   const categorizedPapersMap = useMemo(() => {
     const map: Record<string, Paper[]> = {};
     Object.keys(CATEGORIES_CONFIG).forEach((catKey) => {
@@ -354,14 +602,17 @@ export default function App() {
       <Header
         currentTab={currentTab}
         setCurrentTab={setCurrentTab}
-        openUploadModal={() => setIsUploadModalOpen(true)}
-        openRequestModal={() => setIsRequestModalOpen(true)}
         openAdminModal={() => {
           setAdminInquiryTopic('');
           setIsAdminModalOpen(true);
         }}
         openGitHubModal={() => setIsGitHubModalOpen(true)}
         openTelegramModal={() => setIsTelegramModalOpen(true)}
+        openTelegramPostLinkModal={() => {
+          setTelegramPostLinkPaperId(null);
+          setIsTelegramPostLinkModalOpen(true);
+        }}
+        telegramDbUrl={telegramDbUrl}
         bookmarkCount={bookmarks.length}
       />
 
@@ -372,13 +623,11 @@ export default function App() {
           setSearchQuery={setSearchQuery}
           selectedLanguage={selectedLanguage}
           setSelectedLanguage={setSelectedLanguage}
-          openUploadModal={() => setIsUploadModalOpen(true)}
-          openRequestModal={() => setIsRequestModalOpen(true)}
+          openFatwaTab={() => setCurrentTab('fatwa')}
           openAdminModal={() => {
             setAdminInquiryTopic('');
             setIsAdminModalOpen(true);
           }}
-          openFatwaTab={() => setCurrentTab('fatwa')}
           totalPapers={papers.length}
         />
       )}
@@ -388,48 +637,6 @@ export default function App() {
         {/* TAB 1: PAPERS REPOSITORY & BOOKMARKS */}
         {(currentTab === 'papers' || currentTab === 'bookmarks') && (
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 font-burmese">
-            {/* Direct Telegram Database Access Banner */}
-            <div className="mb-6 bg-gradient-to-r from-[#0C384D] via-[#155370] to-[#1C698D] text-white rounded-2xl p-4 sm:p-5 shadow-lg border border-[#38A4D8]/40 flex flex-col md:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center shrink-0 border border-white/20">
-                  <Send className="w-6 h-6 fill-white text-white animate-pulse" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-sm sm:text-base">
-                      တရားဝင် Telegram စာအုပ် Database စနစ်
-                    </span>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#229ED9] text-white">
-                      Direct Database
-                    </span>
-                  </div>
-                  <p className="text-xs sm:text-sm text-white/80 mt-0.5">
-                    စာအုပ်တိုင်းကို နှိပ်လိုက်သည်နှင့် <strong>Telegram Database</strong> ထဲသို့ တိုက်ရိုက်ရောက်ရှိ၍ ဖတ်ရှုဒေါင်းလုဒ် ရယူနိုင်ပါသည်။
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 w-full md:w-auto shrink-0 justify-end">
-                <button
-                  onClick={() => setIsTelegramModalOpen(true)}
-                  className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-colors"
-                  title="Telegram Database လင့်ခ် ပြင်ဆင်ရန်"
-                >
-                  <Settings className="w-4 h-4" />
-                </button>
-                <a
-                  href={telegramDbUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 bg-[#229ED9] hover:bg-[#1B8BBF] text-white rounded-xl text-xs sm:text-sm font-semibold shadow transition-all active:scale-95"
-                >
-                  <Send className="w-4 h-4 fill-white" />
-                  <span>Telegram Database သို့ သွားမည်</span>
-                  <ExternalLink className="w-3.5 h-3.5 opacity-80" />
-                </a>
-              </div>
-            </div>
-
             {/* Header info bar for Bookmarks tab */}
             {currentTab === 'bookmarks' && (
               <div className="mb-6 p-4 bg-white rounded-2xl border border-[#DFD1BF] shadow-sm flex items-center justify-between">
@@ -490,7 +697,6 @@ export default function App() {
 
               {/* View Mode Toggle & Secondary Controls Bar */}
               <div className="bg-white rounded-xl p-3 border border-[#E5DACB] flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm">
-                {/* View Mode Toggle: Categorized Shelves vs Grid */}
                 <div className="flex items-center gap-1.5 bg-[#FAF7F2] p-1 rounded-xl border border-[#DFD1BF]">
                   <button
                     onClick={() => setViewMode('categories')}
@@ -560,33 +766,44 @@ export default function App() {
 
             {/* Papers Display Area */}
             {filteredPapers.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-[#DFD1BF] p-12 text-center text-[#8C7667]">
-                <BookOpen className="w-12 h-12 mx-auto text-[#D4C1AC] mb-3" />
-                <h3 className="text-base font-bold text-[#3B2211]">စာအုပ် ရှာမတွေ့ပါ</h3>
-                <p className="text-xs text-[#7A6353] mt-1 mb-5">
-                  သင်ရှာဖွေလိုသော အချက်အလက်နှင့် ကိုက်ညီသော စာအုပ်မရှိသေးပါ။ အကယ်ဒမီသို့ စာအုပ်တောင်းဆိုချက် တင်သွင်းနိုင်ပါသည်။
+              <div className="bg-white rounded-3xl border border-[#DFD1BF] p-10 sm:p-14 text-center text-[#8C7667] shadow-sm max-w-2xl mx-auto my-6">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[#FAF7F2] border border-[#E8DEC9] flex items-center justify-center text-[#8B5A2B] shadow-inner">
+                  <BookOpen className="w-8 h-8" />
+                </div>
+                <h3 className="text-lg sm:text-xl font-bold text-[#34180A]">
+                  {papers.length === 0
+                    ? 'အစ္စလာမ့် သုတေသန စာကြည့်တိုက်သို့ ကြိုဆိုပါသည်'
+                    : 'ရှာဖွေမှုနှင့် ကိုက်ညီသော စာအုပ် မရှိပါ'}
+                </h3>
+                <p className="text-xs sm:text-sm text-[#7A6353] mt-2 mb-6 leading-relaxed">
+                  {papers.length === 0
+                    ? 'ကျမ်းစာစာတမ်းသစ်များအား မကြာမီ စနစ်တကျ တင်ပေးပါမည်။ သာသနာရေးရာ ဖသ်ဝါဓမ္မသတ်များကို ဖသ်ဝါကဏ္ဍတွင် မေးမြန်းစုံစမ်းနိုင်ပါသည်။'
+                    : 'သင်ရှာဖွေလိုသော အချက်အလက်နှင့် ကိုက်ညီသော စာအုပ်မရှိသေးပါ။'}
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-3">
+                  {papers.length > 0 && (
+                    <button
+                      onClick={() => {
+                        setSelectedCategory('all');
+                        setSelectedLanguage('all');
+                        setSearchQuery('');
+                      }}
+                      className="px-4 py-2.5 bg-[#FAF7F2] hover:bg-[#F2ECE1] border border-[#D9C4AC] text-[#543825] rounded-xl text-xs font-semibold"
+                    >
+                      ရှာဖွေမှု ပြန်လည်ရှင်းလင်းမည်
+                    </button>
+                  )}
                   <button
-                    onClick={() => {
-                      setSelectedCategory('all');
-                      setSelectedLanguage('all');
-                      setSearchQuery('');
-                    }}
-                    className="px-4 py-2 bg-[#FAF7F2] border border-[#D9C4AC] text-[#543825] rounded-xl text-xs font-semibold"
+                    onClick={() => setCurrentTab('fatwa')}
+                    className="px-5 py-2.5 bg-[#402312] hover:bg-[#2C180E] text-[#FDEBD0] rounded-xl text-xs font-bold border border-[#D9A86B] shadow-sm flex items-center gap-1.5"
                   >
-                    ရှာဖွေမှု ပြန်လည်ရှင်းလင်းမည်
-                  </button>
-                  <button
-                    onClick={() => setIsRequestModalOpen(true)}
-                    className="px-4 py-2 bg-[#8B5A2B] text-white rounded-xl text-xs font-semibold shadow"
-                  >
-                    ဤစာအုပ်ကို တောင်းဆိုမည်
+                    <ShieldCheck className="w-4 h-4 text-[#D9A86B]" />
+                    <span>ဖသ်ဝါ မေးမြန်းရန်</span>
                   </button>
                 </div>
               </div>
             ) : viewMode === 'categories' && selectedCategory === 'all' ? (
-              /* CATEGORIZED SHELVES VIEW (စာအုပ်များကို ကဏ္ဍအလိုက် သပ်သပ်စီခွဲထားသည့် စာအုပ်စင်များ) */
+              /* CATEGORIZED SHELVES VIEW */
               <div className="space-y-10">
                 {Object.entries(CATEGORIES_CONFIG).map(([catKey, config]) => {
                   const catPapers = categorizedPapersMap[catKey] || [];
@@ -653,6 +870,11 @@ export default function App() {
                             onOpenReader={handleOpenReader}
                             onOpenAdminInquiry={handleOpenAdminInquiryWithPaper}
                             onOpenTelegram={handleOpenTelegram}
+                            onOpenTelegramPostLink={(p) => {
+                              setTelegramPostLinkPaperId(p.id);
+                              setIsTelegramPostLinkModalOpen(true);
+                            }}
+                            telegramDbUrl={telegramDbUrl}
                           />
                         ))}
                       </div>
@@ -672,6 +894,11 @@ export default function App() {
                     onOpenReader={handleOpenReader}
                     onOpenAdminInquiry={handleOpenAdminInquiryWithPaper}
                     onOpenTelegram={handleOpenTelegram}
+                    onOpenTelegramPostLink={(p) => {
+                      setTelegramPostLinkPaperId(p.id);
+                      setIsTelegramPostLinkModalOpen(true);
+                    }}
+                    telegramDbUrl={telegramDbUrl}
                   />
                 ))}
               </div>
@@ -679,7 +906,7 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 2: FATWA & FIQH ("ဖသ်ဝါနေရာကိုဝင်တာနဲ့မေးမဲ့နေရာရှိရမယ် ဖြေထားပြီးသားတွေကိုလဲအကန့်လေးတွေနဲ့ပြပေးရမယ်") */}
+        {/* TAB 2: FATWA & FIQH */}
         {currentTab === 'fatwa' && (
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <FatwaSection
@@ -689,49 +916,49 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 3: REQUESTS BOARD ("လိုချင်တာတွေကိုတင်နိုင်မယ်") */}
-        {currentTab === 'requests' && (
-          <PaperRequestsBoard
-            requests={requests}
-            onOpenNewRequestModal={() => setIsRequestModalOpen(true)}
-            onOpenAdminInquiryWithTopic={handleOpenAdminInquiryWithTopic}
-            onViewFulfilledPaper={handleViewFulfilledPaper}
-            papers={papers}
-          />
-        )}
-
-        {/* TAB 3: ADMIN CONTACT SECTION */}
+        {/* TAB 3: CONTACT SECTION */}
         {currentTab === 'contact' && (
           <AdminContactSection
+            contacts={teamMembers}
             initialTopic={adminInquiryTopic}
             onClose={() => setCurrentTab('papers')}
             isModal={false}
           />
         )}
+
+        {/* TAB 4: DEDICATED ADMIN CONTROL CENTER (PIN PROTECTED) */}
+        {currentTab === 'admin' && (
+          <AdminPanel
+            papers={papers}
+            onSavePaper={handlePaperUploaded}
+            onDeletePaper={handleDeletePaper}
+            onUpdateTelegramLink={handleUpdatePaperTelegramLink}
+            telegramDbUrl={telegramDbUrl}
+            onSaveTelegramDbUrl={handleSaveTelegramDbUrl}
+            teamMembers={teamMembers}
+            onSaveTeamMember={handleSaveTeamMember}
+            onDeleteTeamMember={handleDeleteTeamMember}
+            userFatwas={userFatwas}
+            onUpdateFatwaStatus={handleUpdateFatwaStatus}
+            onAnswerFatwa={handleAnswerFatwa}
+            onDeleteFatwa={handleDeleteFatwa}
+            onOpenReader={handleOpenReader}
+            onNavigateHome={() => setCurrentTab('papers')}
+            adminPin={adminPin}
+            onSaveAdminPin={handleSaveAdminPin}
+          />
+        )}
       </main>
 
-      {/* Floating Fast WhatsApp Admin Button */}
+      {/* Floating Fast WhatsApp Helpline Button */}
       <aside aria-label="Quick WhatsApp Contact" className="fixed bottom-6 right-6 z-30 flex flex-col items-end gap-3">
-        {/* Floating Telegram Database Fast Button */}
-        <a
-          href={telegramDbUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 px-3.5 py-2.5 bg-[#229ED9] hover:bg-[#1B8BBF] text-white rounded-full shadow-xl border-2 border-white hover:scale-105 transition-all text-xs font-semibold font-burmese"
-          title="Telegram Database တိုက်ရိုက်ဝင်ရောက်ရန်"
-        >
-          <Send className="w-4 h-4 fill-white" />
-          <span className="hidden sm:inline">Telegram Database</span>
-        </a>
-
-        {/* WhatsApp Admin Button */}
         <button
           onClick={() => {
             setAdminInquiryTopic('');
             setIsAdminModalOpen(true);
           }}
           className="flex items-center gap-2.5 px-4 py-3 bg-[#1B3F2B] hover:bg-[#153423] text-white rounded-full shadow-2xl border-2 border-[#2E7D4E] hover:scale-105 transition-all group"
-          title="WhatsApp Admin တိုက်ရိုက်ဆက်သွယ်ရန်"
+          title="WhatsApp တိုက်ရိုက်ဆက်သွယ်ရန်"
         >
           <div className="relative">
             <MessageCircle className="w-5 h-5 text-[#4ADE80]" />
@@ -747,9 +974,14 @@ export default function App() {
       {/* Modals */}
       <PaperReaderModal
         paper={readerPaper}
-        onClose={() => setReaderPaper(null)}
+        onClose={handleCloseReader}
         onOpenAdminInquiry={handleOpenAdminInquiryWithPaper}
         onPaperDownloaded={handlePaperDownloaded}
+        onOpenTelegramPostLink={(p) => {
+          setTelegramPostLinkPaperId(p.id);
+          setIsTelegramPostLinkModalOpen(true);
+        }}
+        telegramDbUrl={telegramDbUrl}
       />
 
       <UploadPaperModal
@@ -758,16 +990,11 @@ export default function App() {
         onPaperUploaded={handlePaperUploaded}
       />
 
-      <PaperRequestModal
-        isOpen={isRequestModalOpen}
-        onClose={() => setIsRequestModalOpen(false)}
-        onRequestSubmitted={handleRequestSubmitted}
-      />
-
       <AdminContactsModal
         isOpen={isAdminModalOpen}
         onClose={() => setIsAdminModalOpen(false)}
         initialTopic={adminInquiryTopic}
+        contacts={teamMembers}
       />
 
       <GitHubModal
@@ -779,13 +1006,21 @@ export default function App() {
         isOpen={isTelegramModalOpen}
         onClose={() => setIsTelegramModalOpen(false)}
         currentUrl={telegramDbUrl}
-        onSaveUrl={(newUrl) => {
-          setTelegramDbUrl(newUrl);
-          showToast('Telegram Database လင့်ခ်အား အောင်မြင်စွာ ပြင်ဆင်ပြီးပါပြီ ✓');
-        }}
+        onSaveUrl={handleSaveTelegramDbUrl}
       />
 
-      {/* Footer */}
+      <TelegramPostLinkModal
+        isOpen={isTelegramPostLinkModalOpen}
+        onClose={() => setIsTelegramPostLinkModalOpen(false)}
+        papers={papers}
+        initialPaperId={telegramPostLinkPaperId}
+        onAddNewPaperFromTelegram={handleAddNewPaperFromTelegram}
+        onSelectPaperToRead={(paper) => handleOpenReader(paper)}
+        onUpdatePaperTelegramLink={handleUpdatePaperTelegramLink}
+        telegramDbUrl={telegramDbUrl}
+      />
+
+      {/* Footer with subtle Admin Panel link at the bottom */}
       <Footer
         onSelectCategory={(cat) => {
           setSelectedCategory(cat);
@@ -797,11 +1032,15 @@ export default function App() {
           setIsAdminModalOpen(true);
         }}
         openUploadModal={() => setIsUploadModalOpen(true)}
-        openRequestModal={() => setIsRequestModalOpen(true)}
+        openAdminPanel={() => {
+          setCurrentTab('admin');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
         openFatwaSection={() => {
           setCurrentTab('fatwa');
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
+        teamMembers={teamMembers}
       />
     </div>
   );

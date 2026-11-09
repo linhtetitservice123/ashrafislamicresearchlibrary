@@ -1,23 +1,26 @@
 import React from 'react';
-import { BookOpen, Phone, MessageCircle, Heart, Shield, Mail } from 'lucide-react';
+import { BookOpen, Phone, MessageCircle, Lock, Mail } from 'lucide-react';
 import { CATEGORIES_CONFIG } from '../data/initialData';
-import { PaperCategory } from '../types';
+import { PaperCategory, AdminContact } from '../types';
 
 interface FooterProps {
   onSelectCategory: (cat: PaperCategory | 'all') => void;
   openAdminModal: () => void;
-  openUploadModal: () => void;
-  openRequestModal: () => void;
+  openUploadModal?: () => void;
   openFatwaSection?: () => void;
+  openAdminPanel?: () => void;
+  teamMembers?: AdminContact[];
 }
 
 export const Footer: React.FC<FooterProps> = ({
   onSelectCategory,
   openAdminModal,
-  openUploadModal,
-  openRequestModal,
   openFatwaSection,
+  openAdminPanel,
+  teamMembers = [],
 }) => {
+  const primaryContact = teamMembers.length > 0 ? teamMembers[0] : null;
+
   return (
     <footer className="bg-[#1C0F08] border-t border-[#3E2111] text-[#EAD8C7] font-burmese">
       {/* Top Footer Banner */}
@@ -84,31 +87,20 @@ export const Footer: React.FC<FooterProps> = ({
               )}
               <li>
                 <button
-                  onClick={openUploadModal}
-                  className="hover:text-white hover:underline text-left"
-                >
-                  • သာသနာရေးရာ စာတမ်းတင်သွင်းရန် (Upload)
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={openRequestModal}
-                  className="hover:text-white hover:underline text-left"
-                >
-                  • ကျမ်းစာတောင်းဆိုချက် တင်ရန် (Request)
-                </button>
-              </li>
-              <li>
-                <button
                   onClick={openAdminModal}
                   className="hover:text-white hover:underline text-left"
                 >
-                  • WhatsApp ဖြင့် ပညာရှင်များအား မေးမြန်းရန်
+                  • WhatsApp ဖြင့် ပညာရှင်များအား တိုက်ရိုက်မေးမြန်းရန်
                 </button>
               </li>
               <li>
                 <span className="text-[#8C7667]">
                   • ဖောင့်ပုံစံ: Jameel Noori (Urdu) / Al Qalam (Arabic)
+                </span>
+              </li>
+              <li>
+                <span className="text-[#8C7667]">
+                  • အဟ်လေစွန္နသ်ဝလ်ဂျမာအသ် ဟနဖီလမ်းစဉ်
                 </span>
               </li>
             </ul>
@@ -120,14 +112,23 @@ export const Footer: React.FC<FooterProps> = ({
               တိုက်ရိုက် ဆက်သွယ်ရန်
             </h4>
             <div className="space-y-3 text-xs text-[#D9C4AC]">
-              <div className="flex items-center gap-2">
-                <MessageCircle className="w-4 h-4 text-[#4ADE80]" />
-                <span>WhatsApp: 09-777112233 / 09-450889900</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Phone className="w-4 h-4 text-[#D9A86B]" />
-                <span>ရုံးဖုန်း: 09-250114477, 09-965223344</span>
-              </div>
+              {primaryContact ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <MessageCircle className="w-4 h-4 text-[#4ADE80]" />
+                    <span>WhatsApp: {primaryContact.displayWhatsapp}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-4 h-4 text-[#D9A86B]" />
+                    <span>ဖုန်း: {primaryContact.displayPhone}</span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <MessageCircle className="w-4 h-4 text-[#4ADE80]" />
+                  <span>ဆက်သွယ်ရေး ဖုန်းနံပါတ်များအား Admin Panel တွင် သတ်မှတ်နိုင်ပါသည်</span>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <Mail className="w-4 h-4 text-[#D9A86B]" />
                 <span>contact@islamicresearch.org</span>
@@ -147,14 +148,28 @@ export const Footer: React.FC<FooterProps> = ({
         </div>
       </div>
 
-      {/* Bottom Copyright */}
-      <div className="bg-[#120804] border-t border-[#2C1810] py-4 px-4 text-center text-xs text-[#8C7667]">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+      {/* Bottom Copyright & Subtle Admin Panel link at the very bottom */}
+      <div className="bg-[#120804] border-t border-[#2C1810] py-4 px-4 text-xs text-[#8C7667]">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <div>
             © {new Date().getFullYear()} Islamic Research Academy (အစ္စလာမ့် သုတေသန အကယ်ဒမီ). All rights reserved.
           </div>
-          <div className="text-[11px] text-[#A68F7E]">
-            ဒီဇိုင်းပုံစံ: သာသနာရေးရာ အညိုနှင့် အဖြူရောင်စုံတွဲ အင်တာဖေ့စ်
+
+          {/* Discreet Admin Login at the bottom as requested: "Admin Panelသို့ဝင်ရန်ကိုစာမျက်နှာရဲ့အောက်ဆုံးလေးမှာ မသိမသာလေးထည့်ထားပေးပါ" */}
+          <div className="flex items-center gap-4">
+            <span className="text-[11px] text-[#5C4535]">
+              အစ္စလာမ့် သုတေသန မော်ကွန်းတိုက်
+            </span>
+            {openAdminPanel && (
+              <button
+                onClick={openAdminPanel}
+                className="opacity-40 hover:opacity-100 text-[11px] text-[#8C7667] hover:text-[#D9A86B] flex items-center gap-1.5 transition-all py-1 px-2 rounded hover:bg-white/5"
+                title="စီမံခန့်ခွဲသူ ဝင်ပေါက် (Admin Control Center)"
+              >
+                <Lock className="w-3 h-3 text-[#A68F7E]" />
+                <span>Admin Login</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

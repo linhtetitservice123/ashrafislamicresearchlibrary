@@ -1,17 +1,20 @@
 import React from 'react';
-import { X, MessageCircle } from 'lucide-react';
+import { X } from 'lucide-react';
 import { AdminContactSection } from './AdminContactSection';
+import { AdminContact } from '../types';
 
 interface AdminContactsModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialTopic?: string;
+  contacts?: AdminContact[];
 }
 
 export const AdminContactsModal: React.FC<AdminContactsModalProps> = ({
   isOpen,
   onClose,
   initialTopic = '',
+  contacts = [],
 }) => {
   if (!isOpen) return null;
 
@@ -30,7 +33,12 @@ export const AdminContactsModal: React.FC<AdminContactsModalProps> = ({
         </div>
 
         <div className="overflow-y-auto flex-1">
-          <AdminContactSection initialTopic={initialTopic} onClose={onClose} isModal={true} />
+          <AdminContactSection
+            contacts={contacts}
+            initialTopic={initialTopic}
+            onClose={onClose}
+            isModal={true}
+          />
         </div>
       </div>
     </div>
