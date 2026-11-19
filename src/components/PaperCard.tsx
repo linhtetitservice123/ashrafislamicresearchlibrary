@@ -89,16 +89,16 @@ export const PaperCard: React.FC<PaperCardProps> = ({
   return (
     <div
       onClick={handleCardClick}
-      className="group bg-white rounded-2xl border border-[#E8DEC9] hover:border-[#229ED9] hover:shadow-xl transition-all duration-300 flex flex-col justify-between overflow-hidden relative cursor-pointer"
+      className="group w-full min-w-0 bg-white rounded-2xl border border-[#E8DEC9] hover:border-[#229ED9] hover:shadow-xl transition-all duration-300 flex flex-col justify-between overflow-hidden relative cursor-pointer"
       title="ဤစာအုပ်အား နှိပ်လိုက်ပါက Telegram Database စာအုပ်ဖိုင်သို့ တိုက်ရိုက်ရောက်ရှိပါမည်"
     >
       {/* Top spine accent in warm brown & telegram blue gradient */}
       <div className="h-1.5 w-full bg-gradient-to-r from-[#8B5A2B] via-[#229ED9] to-[#5C361C]"></div>
 
-      <div className="p-5 flex-1 flex flex-col">
+      <div className="p-4 sm:p-5 flex-1 flex flex-col min-w-0">
         {/* Badges Bar: Category & Language & Verified Badge */}
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5 min-w-0">
             <span className="px-2.5 py-0.5 rounded-full text-xs font-burmese font-medium bg-[#F6EFE6] text-[#70421B] border border-[#DECCB5]">
               {categoryMeta.nameMy}
             </span>
@@ -236,7 +236,10 @@ export const PaperCard: React.FC<PaperCardProps> = ({
       </div>
 
       {/* Action Buttons Bar: Direct Telegram DB button + Web preview + WhatsApp inquiry */}
-      <div className="bg-[#FAF7F2] px-4 py-3 border-t border-[#E8DEC9] flex items-center justify-between gap-2" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="bg-[#FAF7F2] px-3 sm:px-4 py-3 border-t border-[#E8DEC9] flex flex-wrap sm:flex-nowrap items-center justify-between gap-2"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Telegram Direct Channel / Post Button */}
         <a
           href={targetTelegramUrl}
@@ -245,16 +248,16 @@ export const PaperCard: React.FC<PaperCardProps> = ({
           onClick={(e) => {
             e.stopPropagation();
           }}
-          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 bg-[#229ED9] hover:bg-[#1B8BBF] active:scale-[0.98] text-white rounded-xl text-xs sm:text-sm font-burmese font-semibold shadow-sm transition-all group/btn"
+          className="flex-1 min-w-[160px] flex items-center justify-center gap-1.5 py-2.5 px-3 bg-[#229ED9] hover:bg-[#1B8BBF] active:scale-[0.98] text-white rounded-xl text-xs sm:text-sm font-burmese font-semibold shadow-sm transition-all group/btn"
           title={
             paper.telegramLink
               ? 'Telegram Channel ရှိ ဤစာအုပ်ပို့စ်သို့ တိုက်ရိုက်ရောက်ရှိပါမည်'
               : 'Telegram Channel သို့ တိုက်ရိုက်ရောက်ရှိပါမည်'
           }
         >
-          <Send className="w-4 h-4 fill-white text-white group-hover/btn:scale-110 transition-transform" />
-          <span>{paper.telegramLink ? 'Telegram Post သို့ သွားမည်' : 'Telegram Channel သို့ သွားမည်'}</span>
-          <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+          <Send className="w-4 h-4 fill-white text-white shrink-0 group-hover/btn:scale-110 transition-transform" />
+          <span className="truncate">{paper.telegramLink ? 'Telegram Post သို့' : 'Telegram Channel သို့'}</span>
+          <ExternalLink className="w-3.5 h-3.5 opacity-80 shrink-0" />
         </a>
 
         {/* Web Preview Button */}

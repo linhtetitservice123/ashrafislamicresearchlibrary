@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   ShieldCheck,
-  Lock,
-  Unlock,
-  KeyRound,
   BookOpen,
   PlusCircle,
   Trash2,
@@ -15,7 +12,6 @@ import {
   Search,
   X,
   AlertTriangle,
-  Settings,
   Eye,
   LogOut,
   Sparkles,
@@ -23,11 +19,21 @@ import {
   MessageCircle,
   Phone,
   Clock,
-  PhoneCall,
   UserPlus,
+  Mail,
+  Shield,
+  UserCheck,
 } from 'lucide-react';
-import { Paper, PaperCategory, LanguageType, UserSubmittedFatwa, AdminContact } from '../types';
-import { CATEGORIES_CONFIG, SAMPLE_TEMPLATE_PAPER, SAMPLE_ADMIN_CONTACT } from '../data/initialData';
+import {
+  Paper,
+  PaperCategory,
+  LanguageType,
+  UserSubmittedFatwa,
+  AdminContact,
+  AdminUser,
+} from '../types';
+import { CATEGORIES_CONFIG, SAMPLE_TEMPLATE_PAPER } from '../data/initialData';
+import { OWNER_ADMIN_EMAIL } from '../lib/firebase';
 
 interface AdminPanelProps {
   papers: Paper[];
@@ -50,8 +56,11 @@ interface AdminPanelProps {
   onDeleteFatwa: (id: string) => void;
   onOpenReader: (paper: Paper) => void;
   onNavigateHome: () => void;
-  adminPin: string;
-  onSaveAdminPin: (newPin: string) => void;
+  authUserEmail: string;
+  onLogout: () => void;
+  adminUsers: AdminUser[];
+  onAddAdminUser: (email: string, name?: string) => Promise<void>;
+  onRemoveAdminUser: (email: string) => Promise<void>;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
@@ -70,24 +79,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onDeleteFatwa,
   onOpenReader,
   onNavigateHome,
-  adminPin,
-  onSaveAdminPin,
+  authUserEmail,
+  onLogout,
+  adminUsers,
+  onAddAdminUser,
+  onRemoveAdminUser,
 }) => {
-  // Session Authentication state
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    try {
-      return sessionStorage.getItem('ira_admin_session') === 'true';
-    } catch {
-      return false;
-    }
-  });
-
-  const [enteredPin, setEnteredPin] = useState('');
-  const [pinError, setPinError] = useState<string | null>(null);
-  const [showPin, setShowPin] = useState(false);
-
   // Active Admin Sub-tab
-  const [activeTab, setActiveTab] = useState<'books' | 'telegram' | 'fatwas' | 'team' | 'settings'>('books');
+  const [activeTab, setActiveTab] = useState<'books' | 'telegram' | 'fatwas' | 'team' | 'admins'>('books');
 
   // Book Management States
   const [bookSearch, setBookSearch] = useState('');
@@ -133,11 +132,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [memberFormActiveHours, setMemberFormActiveHours] = useState('');
   const [memberFormSpecialization, setMemberFormSpecialization] = useState('');
 
-  // Change PIN state
-  const [currentPinInput, setCurrentPinInput] = useState('');
-  const [newPinInput, setNewPinInput] = useState('');
-  const [confirmPinInput, setConfirmPinInput] = useState('');
-  const [pinChangeMessage, setPinChangeMessage] = useState<{ text: string; isError: boolean } | null>(null);
+  // Admin Account Assignment States
+  const [newAdminEmail, setNewAdminEmail] = useState('');
+  const [newAdminName, setNewAdminName] = useState('');
+  const [adminFormMessage, setAdminFormMessage] = useState<{ text: string; isError: boolean } | null>(null);
+  const [isAddingAdmin, setIsAddingAdmin] = useState(false);
+  const [revokingAdminEmail, setRevokingAdminEmail] = useState<string | null>(null);
 
   // Fatwa Answering Modal State
   const [answeringFatwa, setAnsweringFatwa] = useState<UserSubmittedFatwa | null>(null);
@@ -155,36 +155,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   useEffect(() => {
     setTgChannelInput(telegramDbUrl);
   }, [telegramDbUrl]);
-
-  // Handle PIN Login
-  const handlePinSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (enteredPin.trim() === adminPin.trim()) {
-      setIsAuthenticated(true);
-      try {
-        sessionStorage.setItem('ira_admin_session', 'true');
-      } catch (err) {
-        console.error(err);
-      }
-      setPinError(null);
-      setEnteredPin('');
-    } else {
-      setPinError('PIN ကုဒ် မှားယွင်းနေပါသည်။ ကျေးဇူးပြု၍ ပြန်လည်စစ်ဆေးပါ။');
-      setEnteredPin('');
-    }
-  };
-
-  // Handle PIN Logout / Lock
-  const handleLockAdmin = () => {
-    setIsAuthenticated(false);
-    try {
-      sessionStorage.removeItem('ira_admin_session');
-    } catch (err) {
-      console.error(err);
-    }
-    setEnteredPin('');
-    setPinError(null);
-  };
 
   // Open Form to Add New Book
   const handleOpenAddBook = () => {
@@ -380,27 +350,60 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
-  // Change Admin PIN
-  const handleChangePin = (e: React.FormEvent) => {
+  // Add new Admin Gmail Account
+  const handleAddAdminSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (currentPinInput.trim() !== adminPin.trim()) {
-      setPinChangeMessage({ text: 'လက်ရှိ PIN ကုဒ် မမှန်ကန်ပါ', isError: true });
-      return;
-    }
-    if (newPinInput.trim().length < 4) {
-      setPinChangeMessage({ text: 'PIN ကုဒ်သည် အနည်းဆုံး ၄ လုံး ရှိရပါမည်', isError: true });
-      return;
-    }
-    if (newPinInput.trim() !== confirmPinInput.trim()) {
-      setPinChangeMessage({ text: 'PIN အသစ်နှစ်ခု ကိုက်ညီမှုမရှိပါ', isError: true });
+    const normalized = newAdminEmail.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(normalized)) {
+      setAdminFormMessage({ text: 'ကျေးဇူးပြု၍ မှန်ကန်သော Gmail လိပ်စာကို ထည့်သွင်းပါ။', isError: true });
       return;
     }
 
-    onSaveAdminPin(newPinInput.trim());
-    setCurrentPinInput('');
-    setNewPinInput('');
-    setConfirmPinInput('');
-    setPinChangeMessage({ text: 'Admin PIN ကုဒ် အသစ်အား အောင်မြင်စွာ ပြောင်းလဲသိမ်းဆည်းပြီးပါပြီ ✓', isError: false });
+    if (normalized === OWNER_ADMIN_EMAIL) {
+      setAdminFormMessage({ text: 'ဤ Gmail အကောင့်သည် ပင်မပိုင်ရှင် Admin ဖြစ်ပြီးသား ဖြစ်ပါသည်။', isError: true });
+      return;
+    }
+
+    if (adminUsers.some((a) => a.email.toLowerCase() === normalized)) {
+      setAdminFormMessage({ text: 'ဤ Gmail အကောင့်ကို Admin အဖြစ် ခန့်အပ်ထားပြီး ဖြစ်ပါသည်။', isError: true });
+      return;
+    }
+
+    setIsAddingAdmin(true);
+    setAdminFormMessage(null);
+    try {
+      await onAddAdminUser(normalized, newAdminName.trim());
+      setNewAdminEmail('');
+      setNewAdminName('');
+      setAdminFormMessage({
+        text: `"${normalized}" အား Admin အဖြစ် အောင်မြင်စွာ ခန့်အပ်ပြီးပါပြီ ✓`,
+        isError: false,
+      });
+      showAdminToast(`"${normalized}" အား Admin ခန့်အပ်ပြီးပါပြီ ✓`);
+    } catch (err) {
+      console.error(err);
+      setAdminFormMessage({
+        text: 'Admin ခန့်အပ်ရာတွင် အမှားအယွင်း ဖြစ်ပေါ်နေပါသည်။ ထပ်မံကြိုးစားပါ။',
+        isError: true,
+      });
+    } finally {
+      setIsAddingAdmin(false);
+    }
+  };
+
+  // Revoke Admin Gmail Account
+  const handleConfirmRevokeAdmin = async () => {
+    if (!revokingAdminEmail) return;
+    try {
+      await onRemoveAdminUser(revokingAdminEmail);
+      showAdminToast(`"${revokingAdminEmail}" ထံမှ Admin အခွင့်အရေးကို ရုပ်သိမ်းပြီးပါပြီ ✓`);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setRevokingAdminEmail(null);
+    }
   };
 
   // Open Fatwa Answer Modal
@@ -442,205 +445,113 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   );
 
   // ----------------------------------------------------
-  // SCREEN 1: PIN CODE ACCESS LOCK (When not authenticated)
+  // AUTHENTICATED ADMIN DASHBOARD
   // ----------------------------------------------------
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-[80vh] flex items-center justify-center px-4 py-12 font-burmese">
-        <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-[#DFD1BF] overflow-hidden animate-fade-in">
-          {/* Header */}
-          <div className="bg-gradient-to-r from-[#2B170E] via-[#4A2613] to-[#1C0E07] px-6 py-8 text-center text-white relative">
-            <div className="w-16 h-16 mx-auto mb-3 rounded-2xl bg-[#D9A86B]/20 border border-[#D9A86B]/40 flex items-center justify-center shadow-inner">
-              <ShieldCheck className="w-9 h-9 text-[#EAD8B5]" />
-            </div>
-            <h2 className="text-xl sm:text-2xl font-bold font-cinzel tracking-wider text-[#F7F2EA]">
-              ADMIN CONTROL PANEL
-            </h2>
-            <p className="text-xs text-[#D9A86B] font-burmese mt-1">
-              အစ္စလာမ့် သုတေသန အကယ်ဒမီ • စီမံခန့်ခွဲရေး စင်တာ
-            </p>
-          </div>
+  const secondaryAdmins = adminUsers.filter(
+    (a) => a.email.toLowerCase() !== OWNER_ADMIN_EMAIL
+  );
 
-          {/* PIN Form */}
-          <form onSubmit={handlePinSubmit} className="p-6 sm:p-8 space-y-6">
-            <div className="text-center">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FAF7F2] border border-[#DECCB5] text-xs font-semibold text-[#6E421B] mb-2">
-                <Lock className="w-3.5 h-3.5 text-[#8B5A2B]" />
-                <span>လုံခြုံရေး PIN ဖြင့် သော့ဖွင့်ရန်</span>
-              </div>
-              <p className="text-xs text-[#7A6353] leading-relaxed">
-                ဝဘ်ဆိုက်တစ်ခုလုံး၏ စာအုပ်များ၊ ဖသ်ဝါများ၊ အဖွဲ့ဝင်ဖုန်းနံပါတ်များနှင့် Telegram ဆက်တင်များကို ထိန်းချုပ်ရန် Admin PIN ကုဒ်ကို ရိုက်ထည့်ပါ
-              </p>
-            </div>
-
-            {pinError && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-xs text-red-700 animate-shake">
-                <AlertTriangle className="w-4 h-4 shrink-0 text-red-500" />
-                <span>{pinError}</span>
-              </div>
-            )}
-
-            <div>
-              <label className="block text-xs font-bold text-[#3B2211] mb-2">
-                Admin Security PIN Code (ကုဒ် ၄ လုံး)
-              </label>
-              <div className="relative">
-                <input
-                  type={showPin ? 'text' : 'password'}
-                  required
-                  autoFocus
-                  maxLength={12}
-                  value={enteredPin}
-                  onChange={(e) => setEnteredPin(e.target.value)}
-                  placeholder="••••"
-                  className="w-full text-center text-2xl tracking-widest font-mono font-bold px-4 py-3 bg-[#FAF7F2] border-2 border-[#D9C4AC] focus:border-[#8B5A2B] rounded-2xl outline-none transition-all shadow-inner text-[#2C1810]"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPin(!showPin)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-[#8B5A2B] font-semibold hover:underline"
-                >
-                  {showPin ? 'ဝှက်မည်' : 'ပြမည်'}
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full py-3.5 px-4 bg-gradient-to-r from-[#8B5A2B] to-[#5C361C] hover:from-[#9D6833] hover:to-[#73431B] text-white font-bold rounded-2xl shadow-lg border border-[#D9A86B]/30 transition-all flex items-center justify-center gap-2 active:scale-98"
-            >
-              <Unlock className="w-4 h-4" />
-              <span>Admin Panel ထဲသို့ ဝင်ရောက်မည်</span>
-            </button>
-
-            <div className="p-3.5 bg-[#FAF7F2] rounded-xl border border-[#E8DEC9] text-[11px] text-[#7A6353] space-y-1">
-              <div className="flex items-center gap-1.5 font-semibold text-[#543825]">
-                <KeyRound className="w-3.5 h-3.5 text-[#8B5A2B]" />
-                <span>စတင်အသုံးပြုသူများအတွက် အချက်အလက်:</span>
-              </div>
-              <p>Default PIN ကုဒ်မှာ <strong className="font-mono text-[#8B5A2B] text-xs">7860</strong> (သို့မဟုတ် သင်သတ်မှတ်ထားသော PIN) ဖြစ်ပါသည်။</p>
-              <p>Admin Panel ထဲသို့ ဝင်ရောက်ပြီးပါက မိမိစိတ်ကြိုက် PIN အသစ်သို့ အချိန်မရွေး လုံခြုံစွာ ပြောင်းလဲနိုင်ပါသည်။</p>
-            </div>
-
-            <div className="text-center pt-2">
-              <button
-                type="button"
-                onClick={onNavigateHome}
-                className="text-xs text-[#8B5A2B] hover:text-[#5C361C] font-semibold hover:underline"
-              >
-                ← ပင်မ စာကြည့်တိုက် စာမျက်နှာသို့ ပြန်သွားမည်
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  }
-
-  // ----------------------------------------------------
-  // SCREEN 2: AUTHENTICATED ADMIN DASHBOARD
-  // ----------------------------------------------------
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 font-burmese space-y-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 font-burmese space-y-6">
       {/* Toast Notification */}
       {adminToast && (
-        <div className="fixed top-5 right-5 z-50 bg-[#1B3F2B] text-[#E3F8EB] px-5 py-3 rounded-2xl shadow-2xl border border-[#4ADE80]/40 flex items-center gap-2 text-sm font-semibold animate-fade-in">
-          <CheckCircle2 className="w-5 h-5 text-[#4ADE80]" />
-          <span>{adminToast}</span>
+        <div className="fixed top-4 left-4 right-4 sm:left-auto sm:right-5 sm:max-w-md z-50 bg-[#1B3F2B] text-[#E3F8EB] px-4 py-3 rounded-2xl shadow-2xl border border-[#4ADE80]/40 flex items-center gap-2 text-xs sm:text-sm font-semibold">
+          <CheckCircle2 className="w-5 h-5 text-[#4ADE80] shrink-0" />
+          <span className="break-words">{adminToast}</span>
         </div>
       )}
 
       {/* Top Admin Header Bar */}
-      <div className="bg-gradient-to-r from-[#24130B] via-[#3B1E0F] to-[#1C0E07] text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-[#5C381E] flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#8B5A2B] to-[#5C361C] border border-[#D9A86B]/40 flex items-center justify-center shadow-lg shrink-0">
-            <ShieldCheck className="w-8 h-8 text-[#FAF2E6]" />
+      <div className="bg-gradient-to-r from-[#24130B] via-[#3B1E0F] to-[#1C0E07] text-white rounded-3xl p-5 sm:p-8 shadow-xl border border-[#5C381E] flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5">
+        <div className="flex items-start sm:items-center gap-4 min-w-0 w-full lg:w-auto">
+          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-[#8B5A2B] to-[#5C361C] border border-[#D9A86B]/40 flex items-center justify-center shadow-lg shrink-0">
+            <ShieldCheck className="w-7 h-7 sm:w-8 sm:h-8 text-[#FAF2E6]" />
           </div>
-          <div>
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl sm:text-2xl font-bold font-cinzel tracking-wider text-[#F5EFE6]">
+              <h1 className="text-lg sm:text-2xl font-bold font-cinzel tracking-wider text-[#F5EFE6]">
                 ADMIN CONTROL CENTER
               </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#10B981]/20 text-[#34D399] border border-[#10B981]/40 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-ping"></span>
-                <span>Admin အဖြစ် ဝင်ရောက်ထားသည်</span>
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#10B981]/20 text-[#34D399] border border-[#10B981]/40 inline-flex items-center gap-1.5 max-w-full">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] shrink-0"></span>
+                <span className="truncate">{authUserEmail}</span>
               </span>
             </div>
             <p className="text-xs sm:text-sm text-[#D4B996] mt-1">
-              ဝဘ်ဆိုက်တစ်ခုလုံး၏ စာအုပ်များ၊ Telegram ချိတ်ဆက်မှု၊ ဖသ်ဝါများနှင့် အဖွဲ့ဝင်ဖုန်းနံပါတ်များကို စီမံခန့်ခွဲခြင်း
+              ဝဘ်ဆိုက်တစ်ခုလုံး၏ စာအုပ်များ၊ Telegram ချိတ်ဆက်မှု၊ ဖသ်ဝါများ၊ အဖွဲ့ဝင်များနှင့် Admin အကောင့်များကို စီမံခန့်ခွဲခြင်း
             </p>
           </div>
         </div>
 
         {/* Quick Action Buttons */}
-        <div className="flex items-center gap-2.5 flex-wrap self-end md:self-center">
+        <div className="flex items-center gap-2.5 flex-wrap w-full lg:w-auto justify-end">
           <button
             onClick={onNavigateHome}
             className="flex items-center gap-1.5 px-4 py-2 bg-white/10 hover:bg-white/15 text-[#EAD8B5] hover:text-white rounded-xl text-xs sm:text-sm font-semibold border border-white/20 transition-all"
             title="စာဖတ်သူများမြင်တွေ့ရမည့် နေရာသို့ သွားကြည့်ရန်"
           >
-            <Eye className="w-4 h-4" />
+            <Eye className="w-4 h-4 shrink-0" />
             <span>ဝဘ်ဆိုက် ကြည့်မည်</span>
           </button>
 
           <button
-            onClick={handleLockAdmin}
+            onClick={onLogout}
             className="flex items-center gap-1.5 px-4 py-2 bg-[#7F1D1D]/70 hover:bg-[#991B1B] text-[#FEE2E2] rounded-xl text-xs sm:text-sm font-semibold border border-red-500/30 transition-all shadow-sm"
-            title="Admin session အား လုံခြုံစွာ သော့ခတ်ထွက်ခွာမည်"
+            title="Google အကောင့်မှ ထွက်မည်"
           >
-            <LogOut className="w-4 h-4" />
-            <span>Admin သော့ခတ်မည်</span>
+            <LogOut className="w-4 h-4 shrink-0" />
+            <span>အကောင့်မှ ထွက်မည်</span>
           </button>
         </div>
       </div>
 
       {/* Admin Stats Overview Bar */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 sm:gap-4">
-        <div className="bg-white rounded-2xl p-4 border border-[#E8DEC9] shadow-sm flex items-center gap-3">
-          <div className="p-3 rounded-xl bg-[#8B5A2B]/10 text-[#8B5A2B]">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-white rounded-2xl p-4 border border-[#E8DEC9] shadow-sm flex items-center gap-3 min-w-0">
+          <div className="p-2.5 sm:p-3 rounded-xl bg-[#8B5A2B]/10 text-[#8B5A2B] shrink-0">
             <BookOpen className="w-5 h-5" />
           </div>
-          <div>
-            <div className="text-xs text-[#7A6353]">တင်ထားသော စာအုပ်များ</div>
-            <div className="text-xl font-bold font-cinzel text-[#2C1810]">
+          <div className="min-w-0">
+            <div className="text-[11px] sm:text-xs text-[#7A6353] truncate">တင်ထားသော စာအုပ်များ</div>
+            <div className="text-lg sm:text-xl font-bold font-cinzel text-[#2C1810]">
               {papers.length} <span className="text-xs text-[#7A6353] font-normal">Books</span>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 border border-[#E8DEC9] shadow-sm flex items-center gap-3">
-          <div className="p-3 rounded-xl bg-[#0088CC]/10 text-[#0088CC]">
+        <div className="bg-white rounded-2xl p-4 border border-[#E8DEC9] shadow-sm flex items-center gap-3 min-w-0">
+          <div className="p-2.5 sm:p-3 rounded-xl bg-[#0088CC]/10 text-[#0088CC] shrink-0">
             <Send className="w-5 h-5 fill-current" />
           </div>
-          <div>
-            <div className="text-xs text-[#7A6353]">Telegram ချိတ်ဆက်ပြီး</div>
-            <div className="text-xl font-bold font-cinzel text-[#2C1810]">
+          <div className="min-w-0">
+            <div className="text-[11px] sm:text-xs text-[#7A6353] truncate">Telegram ချိတ်ဆက်ပြီး</div>
+            <div className="text-lg sm:text-xl font-bold font-cinzel text-[#2C1810]">
               {papers.filter((p) => p.telegramLink).length}{' '}
               <span className="text-xs text-[#7A6353] font-normal">Posts</span>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 border border-[#E8DEC9] shadow-sm flex items-center gap-3">
-          <div className="p-3 rounded-xl bg-[#047857]/10 text-[#047857]">
+        <div className="bg-white rounded-2xl p-4 border border-[#E8DEC9] shadow-sm flex items-center gap-3 min-w-0">
+          <div className="p-2.5 sm:p-3 rounded-xl bg-[#047857]/10 text-[#047857] shrink-0">
             <ShieldCheck className="w-5 h-5" />
           </div>
-          <div>
-            <div className="text-xs text-[#7A6353]">ဝင်လာသော ဖသ်ဝါမေးခွန်းများ</div>
-            <div className="text-xl font-bold font-cinzel text-[#2C1810]">
+          <div className="min-w-0">
+            <div className="text-[11px] sm:text-xs text-[#7A6353] truncate">ဖသ်ဝါမေးခွန်းများ</div>
+            <div className="text-lg sm:text-xl font-bold font-cinzel text-[#2C1810]">
               {userFatwas.length}{' '}
               <span className="text-xs text-[#7A6353] font-normal">Inquiries</span>
             </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 border border-[#E8DEC9] shadow-sm flex items-center gap-3">
-          <div className="p-3 rounded-xl bg-[#8B5A2B]/10 text-[#8B5A2B]">
+        <div className="bg-white rounded-2xl p-4 border border-[#E8DEC9] shadow-sm flex items-center gap-3 min-w-0">
+          <div className="p-2.5 sm:p-3 rounded-xl bg-[#8B5A2B]/10 text-[#8B5A2B] shrink-0">
             <Users className="w-5 h-5" />
           </div>
-          <div>
-            <div className="text-xs text-[#7A6353]">အဖွဲ့ဝင် / ဖုန်းနံပါတ်များ</div>
-            <div className="text-xl font-bold font-cinzel text-[#2C1810]">
+          <div className="min-w-0">
+            <div className="text-[11px] sm:text-xs text-[#7A6353] truncate">အဖွဲ့ဝင် / ဖုန်းနံပါတ်</div>
+            <div className="text-lg sm:text-xl font-bold font-cinzel text-[#2C1810]">
               {teamMembers.length}{' '}
               <span className="text-xs text-[#7A6353] font-normal">Members</span>
             </div>
@@ -648,66 +559,66 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </div>
       </div>
 
-      {/* Main Navigation Tabs */}
-      <div className="flex border-b border-[#DECCB5] bg-white rounded-2xl p-1.5 gap-1.5 shadow-sm overflow-x-auto">
+      {/* Main Navigation Tabs (Clean Responsive Grid) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 bg-white rounded-2xl p-2 border border-[#DECCB5] shadow-sm">
         <button
           onClick={() => setActiveTab('books')}
-          className={`flex-1 py-3 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${
+          className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all ${
             activeTab === 'books'
               ? 'bg-[#8B5A2B] text-white shadow-md'
               : 'text-[#5C3B23] hover:bg-[#FAF7F2]'
           }`}
         >
-          <BookOpen className="w-4 h-4" />
-          <span>စာအုပ်စာတမ်းများ စီမံခြင်း ({papers.length})</span>
+          <BookOpen className="w-4 h-4 shrink-0" />
+          <span className="truncate">စာအုပ်စာတမ်း ({papers.length})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('telegram')}
-          className={`flex-1 py-3 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${
+          className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all ${
             activeTab === 'telegram'
               ? 'bg-[#0088CC] text-white shadow-md'
               : 'text-[#5C3B23] hover:bg-[#FAF7F2]'
           }`}
         >
-          <Send className="w-4 h-4 fill-current" />
-          <span>Telegram Channel ထိန်းချုပ်မှု</span>
+          <Send className="w-4 h-4 fill-current shrink-0" />
+          <span className="truncate">Telegram Channel</span>
         </button>
 
         <button
           onClick={() => setActiveTab('fatwas')}
-          className={`flex-1 py-3 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${
+          className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all ${
             activeTab === 'fatwas'
               ? 'bg-[#15803D] text-white shadow-md'
               : 'text-[#5C3B23] hover:bg-[#FAF7F2]'
           }`}
         >
-          <ShieldCheck className="w-4 h-4" />
-          <span>ဖသ်ဝါ မေးခွန်းများ ({userFatwas.length})</span>
+          <ShieldCheck className="w-4 h-4 shrink-0" />
+          <span className="truncate">ဖသ်ဝါ မေးခွန်း ({userFatwas.length})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('team')}
-          className={`flex-1 py-3 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${
+          className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all ${
             activeTab === 'team'
               ? 'bg-[#7C3AED] text-white shadow-md'
               : 'text-[#5C3B23] hover:bg-[#FAF7F2]'
           }`}
         >
-          <Users className="w-4 h-4" />
-          <span>အဖွဲ့ဝင်နှင့် ဖုန်းနံပါတ်များ ({teamMembers.length})</span>
+          <Users className="w-4 h-4 shrink-0" />
+          <span className="truncate">အဖွဲ့ဝင် ({teamMembers.length})</span>
         </button>
 
         <button
-          onClick={() => setActiveTab('settings')}
-          className={`flex-1 py-3 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${
-            activeTab === 'settings'
-              ? 'bg-[#374151] text-white shadow-md'
+          onClick={() => setActiveTab('admins')}
+          className={`col-span-2 sm:col-span-1 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all ${
+            activeTab === 'admins'
+              ? 'bg-[#24130B] text-[#FAF7F2] shadow-md border border-[#8B5A2B]'
               : 'text-[#5C3B23] hover:bg-[#FAF7F2]'
           }`}
         >
-          <Settings className="w-4 h-4" />
-          <span>လုံခြုံရေး PIN ဆက်တင်</span>
+          <UserCheck className="w-4 h-4 shrink-0" />
+          <span className="truncate">Admin ခန့်အပ်ခြင်း ({secondaryAdmins.length + 1})</span>
         </button>
       </div>
 
@@ -926,14 +837,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <label className="block text-xs font-bold text-[#3B2211] mb-2">
                   တရားဝင် Telegram Channel / Database URL Link:
                 </label>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                   <input
                     type="url"
                     required
                     value={tgChannelInput}
                     onChange={(e) => setTgChannelInput(e.target.value)}
                     placeholder="https://t.me/Your_Telegram_Channel"
-                    className="flex-1 px-4 py-3 bg-[#FAF7F2] border border-[#D9C4AC] rounded-xl font-mono text-xs sm:text-sm text-[#0B4F6C] outline-none focus:border-[#0088CC]"
+                    className="flex-1 min-w-0 px-4 py-3 bg-[#FAF7F2] border border-[#D9C4AC] rounded-xl font-mono text-xs sm:text-sm text-[#0B4F6C] outline-none focus:border-[#0088CC]"
                   />
                   <button
                     type="submit"
@@ -1282,100 +1193,180 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       )}
 
       {/* ---------------------------------------------------- */}
-      {/* TAB 5: SECURITY & ADMIN PIN SETTINGS                 */}
+      {/* TAB 5: ADMIN ACCOUNTS MANAGEMENT (GMAIL ASSIGNMENT)   */}
       {/* ---------------------------------------------------- */}
-      {activeTab === 'settings' && (
-        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#DFD1BF] shadow-sm max-w-2xl space-y-6">
-          <div className="flex items-center gap-3 pb-4 border-b border-[#E8DEC9]">
-            <div className="w-12 h-12 rounded-2xl bg-[#24130B] text-[#D9A86B] flex items-center justify-center">
-              <KeyRound className="w-6 h-6" />
+      {activeTab === 'admins' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Left: Add New Admin Gmail Form */}
+          <div className="lg:col-span-5 bg-white rounded-3xl p-5 sm:p-7 border border-[#DFD1BF] shadow-sm space-y-5">
+            <div className="flex items-center gap-3 pb-4 border-b border-[#E8DEC9]">
+              <div className="w-11 h-11 rounded-2xl bg-[#24130B] text-[#D9A86B] flex items-center justify-center shrink-0">
+                <UserPlus className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-base sm:text-lg font-bold text-[#2C1810]">
+                  Admin အသစ် ခန့်အပ်ရန်
+                </h3>
+                <p className="text-xs text-[#7A6353]">
+                  အခြား Gmail အကောင့်တစ်ခုသို့ Admin Control Panel ဝင်ရောက်ခွင့် ပေးအပ်ပါ
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-lg font-bold text-[#2C1810]">
-                Admin လုံခြုံရေး PIN ကုဒ် ပြောင်းလဲခြင်း
-              </h3>
-              <p className="text-xs text-[#7A6353]">
-                Admin Panel ကို ခွင့်ပြုချက်မရှိဘဲ ဝင်ရောက်ခြင်းမှ ကာကွယ်ရန် PIN ကုဒ်အသစ် သတ်မှတ်ပါ
-              </p>
+
+            {adminFormMessage && (
+              <div
+                className={`p-3.5 rounded-xl border flex items-start gap-2 text-xs font-semibold ${
+                  adminFormMessage.isError
+                    ? 'bg-red-50 border-red-200 text-red-700'
+                    : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                }`}
+              >
+                {adminFormMessage.isError ? (
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-red-500 mt-0.5" />
+                ) : (
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" />
+                )}
+                <span className="break-words">{adminFormMessage.text}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleAddAdminSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-[#3B2211] mb-1.5">
+                  ခန့်အပ်လိုသော Gmail လိပ်စာ *
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-[#8B5A2B] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="email"
+                    required
+                    value={newAdminEmail}
+                    onChange={(e) => setNewAdminEmail(e.target.value)}
+                    placeholder="example@gmail.com"
+                    className="w-full pl-10 pr-4 py-2.5 bg-[#FAF7F2] border border-[#D9C4AC] rounded-xl text-xs sm:text-sm text-[#2C1810] outline-none focus:border-[#8B5A2B] font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#3B2211] mb-1.5">
+                  အမည် / တာဝန်မှတ်ချက် (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={newAdminName}
+                  onChange={(e) => setNewAdminName(e.target.value)}
+                  placeholder="ဥပမာ - စာကြည့်တိုက် တာဝန်ခံ / မုဖ်သီ"
+                  className="w-full px-4 py-2.5 bg-[#FAF7F2] border border-[#D9C4AC] rounded-xl text-xs sm:text-sm text-[#2C1810] outline-none focus:border-[#8B5A2B]"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isAddingAdmin}
+                className="w-full py-3 px-5 bg-[#8B5A2B] hover:bg-[#73431B] disabled:opacity-60 text-white font-bold rounded-xl shadow-md text-xs sm:text-sm transition-all flex items-center justify-center gap-2"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>{isAddingAdmin ? 'ခန့်အပ်နေပါသည်...' : 'Admin အဖြစ် ခန့်အပ်မည်'}</span>
+              </button>
+            </form>
+
+            <div className="p-3.5 bg-[#FAF7F2] rounded-2xl border border-[#E8DEC9] text-[11px] text-[#6E533F] leading-relaxed">
+              💡 ခန့်အပ်လိုက်သော Gmail အကောင့်ဖြင့် ဝဘ်ဆိုက်သို့ Login ဝင်ရောက်လိုက်သည်နှင့် Admin Control Panel ကို အလိုအလျောက် တိုက်ရိုက်မြင်တွေ့ရမည် ဖြစ်ပါသည်။ အခြားသာမန်အကောင့်များ ဝင်ရောက်ပါက Admin Panel ကို မြင်တွေ့ရမည် မဟုတ်ပါ။
             </div>
           </div>
 
-          {pinChangeMessage && (
-            <div
-              className={`p-3.5 rounded-xl border flex items-center gap-2 text-xs font-semibold ${
-                pinChangeMessage.isError
-                  ? 'bg-red-50 border-red-200 text-red-700'
-                  : 'bg-emerald-50 border-emerald-200 text-emerald-800'
-              }`}
-            >
-              {pinChangeMessage.isError ? (
-                <AlertTriangle className="w-4 h-4 shrink-0 text-red-500" />
+          {/* Right: Authorized Admin List */}
+          <div className="lg:col-span-7 bg-white rounded-3xl p-5 sm:p-7 border border-[#DFD1BF] shadow-sm space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-[#E8DEC9]">
+              <div className="flex items-center gap-2.5">
+                <Shield className="w-5 h-5 text-[#8B5A2B]" />
+                <h3 className="text-base sm:text-lg font-bold text-[#2C1810]">
+                  Admin အခွင့်အရေး ရရှိထားသော Gmail အကောင့်များ
+                </h3>
+              </div>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#FAF7F2] text-[#7A491C] border border-[#D9C4AC]">
+                စုစုပေါင်း {secondaryAdmins.length + 1} ဦး
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              {/* Primary Owner Admin Card (Always Protected) */}
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-[#FAF7F2] to-[#F5EFE6] border-2 border-[#D9A86B]/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="min-w-0 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#24130B] text-[#EAD8B5]">
+                      ပင်မပိုင်ရှင် Admin (Owner)
+                    </span>
+                    {authUserEmail.toLowerCase() === OWNER_ADMIN_EMAIL && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        သင်၏လက်ရှိအကောင့်
+                      </span>
+                    )}
+                  </div>
+                  <div className="font-mono text-sm font-bold text-[#2C1810] break-all">
+                    {OWNER_ADMIN_EMAIL}
+                  </div>
+                  <p className="text-[11px] text-[#7A6353]">
+                    မူလပင်မ Admin အကောင့်ဖြစ်ပြီး အမြဲတမ်း ကာကွယ်ထားပါသည်။
+                  </p>
+                </div>
+
+                <span className="self-start sm:self-center px-3 py-1 rounded-xl bg-white/80 border border-[#D9C4AC] text-[11px] font-semibold text-[#70421B] shrink-0">
+                  Protected
+                </span>
+              </div>
+
+              {/* Secondary Authorized Admin Cards */}
+              {secondaryAdmins.length === 0 ? (
+                <div className="p-8 rounded-2xl border-2 border-dashed border-[#E8DEC9] text-center text-xs text-[#7A6353]">
+                  အခြား Gmail အကောင့်များကို Admin အဖြစ် ထပ်မံခန့်အပ်ထားခြင်း မရှိသေးပါ။ ဘယ်ဘက်ရှိ ဖောင်မှတစ်ဆင့် ထည့်သွင်းနိုင်ပါသည်။
+                </div>
               ) : (
-                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                secondaryAdmins.map((admin) => {
+                  const isCurrentUser = admin.email.toLowerCase() === authUserEmail.toLowerCase();
+                  return (
+                    <div
+                      key={admin.email}
+                      className="p-4 rounded-2xl bg-white border border-[#E8DEC9] hover:border-[#D9C4AC] transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#8B5A2B]/10 text-[#6E421B] border border-[#D9C4AC]">
+                            ခန့်အပ်ထားသော Admin
+                          </span>
+                          {isCurrentUser && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                              သင်၏လက်ရှိအကောင့်
+                            </span>
+                          )}
+                        </div>
+                        <div className="font-mono text-sm font-bold text-[#2C1810] break-all">
+                          {admin.email}
+                        </div>
+                        {admin.name && (
+                          <div className="text-xs font-semibold text-[#543825]">
+                            {admin.name}
+                          </div>
+                        )}
+                        <div className="text-[11px] text-[#8C7667] break-all">
+                          ခန့်အပ်သူ: {admin.addedBy} • ရက်စွဲ: {admin.addedAt}
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => setRevokingAdminEmail(admin.email)}
+                        className="self-start sm:self-center px-3.5 py-2 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl border border-red-200 text-xs font-semibold flex items-center gap-1.5 transition-colors shrink-0"
+                        title="ဤအကောင့်မှ Admin အခွင့်အရေး ရုပ်သိမ်းမည်"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Admin ရုပ်သိမ်းမည်</span>
+                      </button>
+                    </div>
+                  );
+                })
               )}
-              <span>{pinChangeMessage.text}</span>
             </div>
-          )}
-
-          <form onSubmit={handleChangePin} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-[#3B2211] mb-1.5">
-                လက်ရှိ PIN ကုဒ် (Current PIN)
-              </label>
-              <input
-                type="password"
-                required
-                value={currentPinInput}
-                onChange={(e) => setCurrentPinInput(e.target.value)}
-                placeholder="လက်ရှိ PIN ရိုက်ပါ"
-                className="w-full px-4 py-2.5 bg-[#FAF7F2] border border-[#D9C4AC] rounded-xl font-mono text-sm text-[#2C1810] outline-none focus:border-[#8B5A2B]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-[#3B2211] mb-1.5">
-                PIN ကုဒ် အသစ် (New PIN - အနည်းဆုံး ၄ လုံး)
-              </label>
-              <input
-                type="password"
-                required
-                value={newPinInput}
-                onChange={(e) => setNewPinInput(e.target.value)}
-                placeholder="PIN အသစ် ရိုက်ပါ"
-                className="w-full px-4 py-2.5 bg-[#FAF7F2] border border-[#D9C4AC] rounded-xl font-mono text-sm text-[#2C1810] outline-none focus:border-[#8B5A2B]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-[#3B2211] mb-1.5">
-                PIN ကုဒ် အသစ် အတည်ပြုပါ (Confirm New PIN)
-              </label>
-              <input
-                type="password"
-                required
-                value={confirmPinInput}
-                onChange={(e) => setConfirmPinInput(e.target.value)}
-                placeholder="PIN အသစ် ထပ်မံရိုက်ပါ"
-                className="w-full px-4 py-2.5 bg-[#FAF7F2] border border-[#D9C4AC] rounded-xl font-mono text-sm text-[#2C1810] outline-none focus:border-[#8B5A2B]"
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="px-6 py-3 bg-[#8B5A2B] hover:bg-[#73431B] text-white font-bold rounded-xl shadow-md text-xs sm:text-sm active:scale-95 transition-all"
-            >
-              PIN ကုဒ် အသစ် သိမ်းဆည်းမည်
-            </button>
-          </form>
-
-          <div className="pt-4 border-t border-[#E8DEC9] flex items-center justify-between text-xs text-[#7A6353]">
-            <span>လက်ရှိ အသုံးပြုနေသော PIN: <strong className="font-mono text-[#8B5A2B]">•••• (သတ်မှတ်ထားပြီး)</strong></span>
-            <button
-              onClick={handleLockAdmin}
-              className="text-red-600 hover:text-red-700 font-semibold hover:underline"
-            >
-              ယခု သော့ခတ်ထွက်ခွာမည်
-            </button>
           </div>
         </div>
       )}
@@ -1980,6 +1971,39 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-md"
               >
                 သေချာပါသည်၊ ဖျက်မည်
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------- */}
+      {/* MODAL: REVOKE ADMIN CONFIRMATION MODAL                */}
+      {/* ---------------------------------------------------- */}
+      {revokingAdminEmail && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-3xl p-6 text-center space-y-4 shadow-2xl border border-red-200 animate-scale-up font-burmese">
+            <div className="w-14 h-14 mx-auto rounded-2xl bg-red-100 text-red-600 flex items-center justify-center">
+              <AlertTriangle className="w-7 h-7" />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900">
+              Admin အခွင့်အရေး ရုပ်သိမ်းရန် သေချာပါသလား?
+            </h3>
+            <p className="text-xs text-gray-600 leading-relaxed break-all">
+              <strong className="font-mono text-gray-900">{revokingAdminEmail}</strong> သည် Admin Control Panel သို့ ဝင်ရောက်ခွင့် မရှိတော့ပါ။
+            </p>
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <button
+                onClick={() => setRevokingAdminEmail(null)}
+                className="px-4 py-2.5 rounded-xl border border-gray-300 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                မရုပ်သိမ်းတော့ပါ
+              </button>
+              <button
+                onClick={handleConfirmRevokeAdmin}
+                className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-md"
+              >
+                သေချာပါသည်၊ ရုပ်သိမ်းမည်
               </button>
             </div>
           </div>

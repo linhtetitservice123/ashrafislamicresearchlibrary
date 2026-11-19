@@ -3,18 +3,15 @@ import {
   Search,
   BookOpen,
   Award,
-  Globe2,
-  Sparkles,
+  Layers,
   ShieldCheck,
   MessageCircle,
+  X,
 } from 'lucide-react';
-import { LanguageType } from '../types';
 
 interface HeroSectionProps {
   searchQuery: string;
   setSearchQuery: (q: string) => void;
-  selectedLanguage: LanguageType | 'all';
-  setSelectedLanguage: (lang: LanguageType | 'all') => void;
   openFatwaTab?: () => void;
   openAdminModal?: () => void;
   totalPapers: number;
@@ -23,155 +20,120 @@ interface HeroSectionProps {
 export const HeroSection: React.FC<HeroSectionProps> = ({
   searchQuery,
   setSearchQuery,
-  selectedLanguage,
-  setSelectedLanguage,
   openFatwaTab,
   openAdminModal,
   totalPapers,
 }) => {
-  const languages: { id: LanguageType | 'all'; label: string; script: string; fontClass: string }[] = [
-    { id: 'all', label: 'ဘာသာစကားအားလုံး', script: 'All Languages', fontClass: 'font-burmese' },
-    { id: 'myanmar', label: 'မြန်မာဘာသာ', script: 'Myanmar', fontClass: 'font-burmese' },
-    { id: 'arabic', label: 'العربية', script: 'Al Qalam Arabic', fontClass: 'font-arabic' },
-    { id: 'urdu', label: 'اردو', script: 'Nastaleeq Urdu', fontClass: 'font-urdu text-lg' },
-    { id: 'english', label: 'English', script: 'Scholarly Serif', fontClass: 'font-cinzel text-xs' },
-  ];
-
   return (
-    <div className="relative bg-gradient-to-b from-[#2B170E] via-[#351E12] to-[#FAF7F2] pt-10 pb-12 px-4 sm:px-6 lg:px-8 border-b border-[#E3D7C5]">
-      {/* Decorative Islamic Geometric subtle background watermark */}
+    <section className="relative bg-gradient-to-b from-[#2B170E] via-[#351E12] to-[#FAF7F2] pt-8 sm:pt-12 pb-10 sm:pb-12 px-4 sm:px-6 lg:px-8 border-b border-[#E3D7C5]">
       <div className="absolute inset-0 opacity-10 pointer-events-none bg-islamic-pattern mix-blend-overlay"></div>
 
-      <div className="max-w-5xl mx-auto text-center relative z-10">
-        {/* Academic Institution Tag */}
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#FAF7F2]/10 backdrop-blur-sm border border-[#D9A86B]/30 text-[#EAD8B5] text-xs sm:text-sm font-medium mb-5 shadow-sm">
-          <Sparkles className="w-3.5 h-3.5 text-[#E5B57A]" />
-          <span className="font-burmese">အစ္စလာမ့် သာသနာရေးရာ သုတေသန နှင့် ဓမ္မသတ် ကျမ်းစာမော်ကွန်း</span>
-          <span className="hidden sm:inline text-[#A67C52]">|</span>
-          <span className="hidden sm:inline font-arabic text-xs">معهد البحوث الشرعية</span>
-        </div>
-
+      <div className="max-w-4xl mx-auto text-center relative z-10">
         {/* Hero Title */}
-        <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-white mb-4">
+        <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold tracking-tight text-white mb-3 sm:mb-4 break-words">
           <span className="block font-cinzel text-[#FDFBF7] drop-shadow-sm">
             ISLAMIC RESEARCH ACADEMY
           </span>
-          <span className="block text-2xl sm:text-3xl md:text-4xl text-[#E8CBA5] font-burmese font-semibold mt-2">
+          <span className="block text-xl sm:text-3xl md:text-4xl text-[#E8CBA5] font-burmese font-semibold mt-2">
             သာသနာရေးရာ သုတေသနစာတမ်းများ ပလက်ဖောင်း
           </span>
         </h1>
 
-        <p className="max-w-3xl mx-auto text-sm sm:text-base text-[#DBC2A6] font-burmese leading-relaxed mb-8">
-          ကုရ်အာန်၊ ဟဒီးစ်၊ ဖိကဟ် ဓမ္မသတ်နှင့် အစ္စလာမ့် သာသနာရေးရာ သုတေသနစာတမ်းများကို တစ်စုတစ်စည်းတည်း လေ့လာဖတ်ရှုနိုင်ပါသည်။
-          ဖသ်ဝါ ဓမ္မသတ်များကို မေးမြန်းနိုင်ပြီး ဖြေကြားပြီးသော သုတေသနအဖြေများကို ရှာဖွေဖတ်ရှုနိုင်ပါသည်။
+        <p className="max-w-2xl mx-auto text-xs sm:text-base text-[#DBC2A6] font-burmese leading-relaxed mb-6 sm:mb-8">
+          ကုရ်အာန်၊ ဟဒီးစ်၊ ဖိကဟ် ဓမ္မသတ်နှင့် အစ္စလာမ့် သာသနာရေးရာ သုတေသနစာတမ်းများကို တစ်စုတစ်စည်းတည်း လေ့လာဖတ်ရှုနိုင်ပြီး ဖသ်ဝါဓမ္မသတ်များကို မေးမြန်းနိုင်ပါသည်။
         </p>
 
-        {/* Search Bar - Centerpiece */}
+        {/* Search Bar */}
         <div className="max-w-2xl mx-auto mb-6">
           <div className="relative flex items-center bg-white rounded-2xl shadow-xl border-2 border-[#8B5A2B]/40 focus-within:border-[#8B5A2B] transition-all p-1.5">
-            <div className="pl-3 pr-2 text-[#8B5A2B]">
+            <div className="pl-3 pr-2 text-[#8B5A2B] shrink-0">
               <Search className="w-5 h-5" />
             </div>
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="စာတမ်းခေါင်းစဉ်၊ ရေးသားသူပညာရှင်၊ သော့ချက်စကားလုံးဖြင့် ရှာဖွေပါ (Title, Author, Subject)..."
-              className="w-full bg-transparent text-[#2C1810] placeholder-[#8F7E73] text-sm sm:text-base py-2.5 pr-3 focus:outline-none font-burmese"
+              placeholder="စာတမ်းခေါင်းစဉ်၊ ရေးသားသူပညာရှင်၊ သော့ချက်စကားလုံးဖြင့် ရှာဖွေပါ..."
+              className="w-full min-w-0 bg-transparent text-[#2C1810] placeholder-[#8F7E73] text-xs sm:text-base py-2.5 pr-2 focus:outline-none font-burmese"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="px-2 text-xs text-[#8B5A2B] hover:text-[#5C361C] font-semibold"
+                className="p-1.5 mr-1 text-[#8B5A2B] hover:text-[#5C361C] rounded-lg hover:bg-[#FAF7F2] shrink-0"
+                aria-label="Clear search"
               >
-                ရှင်းမည်
+                <X className="w-4 h-4" />
               </button>
             )}
-            <div className="hidden sm:block pr-1">
-              <span className="px-3 py-1.5 bg-[#F4EFE6] text-[#633A18] text-xs font-semibold rounded-xl border border-[#D9C4AC]">
+            <div className="hidden sm:block pr-1 shrink-0">
+              <span className="px-3 py-1.5 bg-[#F4EFE6] text-[#633A18] text-xs font-semibold rounded-xl border border-[#D9C4AC] whitespace-nowrap">
                 အမြန်ရှာ
               </span>
             </div>
           </div>
         </div>
 
-        {/* Language Filter Pills with native typography display */}
-        <div className="flex flex-wrap items-center justify-center gap-2 mb-8">
-          <span className="text-xs text-[#EAD8B5] font-burmese font-medium mr-1 flex items-center gap-1">
-            <Globe2 className="w-3.5 h-3.5 text-[#D9A86B]" /> ဘာသာစကား:
-          </span>
-          {languages.map((lang) => {
-            const isSelected = selectedLanguage === lang.id;
-            return (
-              <button
-                key={lang.id}
-                onClick={() => setSelectedLanguage(lang.id)}
-                className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm transition-all flex items-center gap-1.5 border ${
-                  isSelected
-                    ? 'bg-[#FAF7F2] text-[#3B1E08] font-bold border-white shadow-md scale-105'
-                    : 'bg-[#24130B]/70 text-[#EAD8B5] border-[#5E381C] hover:bg-[#3E2111] hover:text-white'
-                }`}
-              >
-                <span className={lang.fontClass}>{lang.label}</span>
-                <span className="text-[10px] opacity-70">({lang.script})</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Action CTAs in Hero (Clean and focused: Fatwa Inquiry Button) */}
-        <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 mb-10">
-          {openFatwaTab && (
+        {/* Fatwa CTA */}
+        {openFatwaTab && (
+          <div className="flex items-center justify-center mb-8 sm:mb-10">
             <button
               onClick={openFatwaTab}
-              className="flex items-center gap-2 px-6 py-3.5 bg-[#402312] hover:bg-[#2C180E] text-[#FDEBD0] font-bold rounded-2xl shadow-xl border-2 border-[#D9A86B] transition-all font-burmese text-sm sm:text-base group ring-2 ring-[#D9A86B]/30 hover:scale-105 active:scale-95"
+              className="flex items-center justify-center gap-2 px-5 sm:px-6 py-3 sm:py-3.5 bg-[#402312] hover:bg-[#2C180E] text-[#FDEBD0] font-bold rounded-2xl shadow-xl border-2 border-[#D9A86B] transition-all font-burmese text-xs sm:text-base group ring-2 ring-[#D9A86B]/30 hover:scale-[1.02] active:scale-95"
             >
-              <ShieldCheck className="w-5 h-5 text-[#D9A86B] group-hover:scale-110 transition-transform" />
+              <ShieldCheck className="w-5 h-5 text-[#D9A86B] shrink-0 group-hover:scale-110 transition-transform" />
               <span>ဖသ်ဝါ မေးမြန်း/ဖတ်ရှုရန် (Fatwa)</span>
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* Quick Academy Stats Card */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-w-4xl mx-auto pt-2">
-          <div className="bg-white/90 backdrop-blur rounded-xl p-3.5 border border-[#E0D3C1] shadow-sm text-left">
-            <div className="flex items-center gap-2 text-[#8B5A2B] text-xs font-medium mb-1 font-burmese">
-              <BookOpen className="w-4 h-4" /> စုစုပေါင်းစာတမ်း
+        {/* Quick Academy Stats Grid */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 max-w-4xl mx-auto">
+          <div className="bg-white/95 backdrop-blur rounded-xl p-3.5 sm:p-4 border border-[#E0D3C1] shadow-sm text-left flex flex-col justify-between">
+            <div className="flex items-center gap-1.5 text-[#8B5A2B] text-[11px] sm:text-xs font-medium mb-1 font-burmese">
+              <BookOpen className="w-4 h-4 shrink-0" />
+              <span className="truncate">စုစုပေါင်းစာတမ်း</span>
             </div>
-            <div className="text-2xl font-bold font-cinzel text-[#2C1810]">
-              {totalPapers}+ <span className="text-xs text-[#7A6253] font-normal">Papers</span>
+            <div className="text-xl sm:text-2xl font-bold font-cinzel text-[#2C1810]">
+              {totalPapers} <span className="text-[11px] sm:text-xs text-[#7A6253] font-normal">Papers</span>
             </div>
           </div>
 
-          <div className="bg-white/90 backdrop-blur rounded-xl p-3.5 border border-[#E0D3C1] shadow-sm text-left">
-            <div className="flex items-center gap-2 text-[#8B5A2B] text-xs font-medium mb-1 font-burmese">
-              <Award className="w-4 h-4" /> စိစစ်အတည်ပြုပြီး
+          <div className="bg-white/95 backdrop-blur rounded-xl p-3.5 sm:p-4 border border-[#E0D3C1] shadow-sm text-left flex flex-col justify-between">
+            <div className="flex items-center gap-1.5 text-[#8B5A2B] text-[11px] sm:text-xs font-medium mb-1 font-burmese">
+              <Award className="w-4 h-4 shrink-0" />
+              <span className="truncate">စိစစ်အတည်ပြုပြီး</span>
             </div>
-            <div className="text-2xl font-bold font-cinzel text-[#2C1810]">
-              100% <span className="text-xs text-[#7A6353] font-normal">Verified</span>
-            </div>
-          </div>
-
-          <div className="bg-white/90 backdrop-blur rounded-xl p-3.5 border border-[#E0D3C1] shadow-sm text-left">
-            <div className="flex items-center gap-2 text-[#8B5A2B] text-xs font-medium mb-1 font-burmese">
-              <Globe2 className="w-4 h-4" /> ၄ ဘာသာ မော်ကွန်း
-            </div>
-            <div className="text-xs font-semibold text-[#42220E] mt-1.5 flex items-center gap-1">
-              <span>မြန်မာ</span> • <span className="font-arabic">عربي</span> • <span className="font-urdu">اردو</span> • <span>EN</span>
+            <div className="text-xl sm:text-2xl font-bold font-cinzel text-[#2C1810]">
+              100% <span className="text-[11px] sm:text-xs text-[#7A6353] font-normal">Verified</span>
             </div>
           </div>
 
-          <div className="bg-white/90 backdrop-blur rounded-xl p-3.5 border border-[#E0D3C1] shadow-sm text-left">
-            <div className="flex items-center gap-2 text-[#1E5638] text-xs font-medium mb-1 font-burmese">
-              <MessageCircle className="w-4 h-4 text-[#22C55E]" /> အကူအညီ / ဆွေးနွေး
+          <div className="bg-white/95 backdrop-blur rounded-xl p-3.5 sm:p-4 border border-[#E0D3C1] shadow-sm text-left flex flex-col justify-between">
+            <div className="flex items-center gap-1.5 text-[#8B5A2B] text-[11px] sm:text-xs font-medium mb-1 font-burmese">
+              <Layers className="w-4 h-4 shrink-0" />
+              <span className="truncate">သုတေသန ကဏ္ဍ</span>
             </div>
-            <div className="text-sm font-bold text-[#1E5638] mt-1 font-burmese flex items-center justify-between">
-              <span>WhatsApp တိုက်ရိုက်</span>
-              <span className="w-2 h-2 rounded-full bg-[#22C55E]"></span>
+            <div className="text-lg sm:text-xl font-bold font-burmese text-[#2C1810]">
+              ၇ ကဏ္ဍ <span className="text-[11px] sm:text-xs text-[#7A6253] font-normal font-sans">Categories</span>
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={openAdminModal}
+            className="bg-white/95 hover:bg-white backdrop-blur rounded-xl p-3.5 sm:p-4 border border-[#E0D3C1] hover:border-[#2E7D4E]/50 shadow-sm text-left flex flex-col justify-between transition-colors"
+          >
+            <div className="flex items-center gap-1.5 text-[#1E5638] text-[11px] sm:text-xs font-medium mb-1 font-burmese">
+              <MessageCircle className="w-4 h-4 text-[#22C55E] shrink-0" />
+              <span className="truncate">အကူအညီ / ဆွေးနွေး</span>
+            </div>
+            <div className="text-xs sm:text-sm font-bold text-[#1E5638] font-burmese flex items-center justify-between gap-2">
+              <span className="truncate">WhatsApp တိုက်ရိုက်</span>
+              <span className="w-2 h-2 rounded-full bg-[#22C55E] shrink-0"></span>
+            </div>
+          </button>
         </div>
       </div>
-    </div>
+    </section>
   );
 };

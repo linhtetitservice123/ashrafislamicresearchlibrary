@@ -10,14 +10,25 @@ import {
   query,
   orderBy,
 } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { Paper, PaperRequest, UserSubmittedFatwa, AdminContact } from '../types';
+import { db, handleFirestoreError, OperationType, OWNER_ADMIN_EMAIL } from '../lib/firebase';
+import { Paper, PaperRequest, UserSubmittedFatwa, AdminContact, AdminUser } from '../types';
 
 export const PAPERS_COLLECTION = 'papers';
 export const REQUESTS_COLLECTION = 'requests';
 export const FATWA_INQUIRIES_COLLECTION = 'fatwa_inquiries';
 export const TEAM_MEMBERS_COLLECTION = 'team_members';
 export const SETTINGS_COLLECTION = 'settings';
+export const ADMIN_USERS_COLLECTION = 'admin_users';
+
+function stripUndefined<T extends Record<string, any>>(obj: T): Record<string, any> {
+  const clean: Record<string, any> = {};
+  Object.entries(obj).forEach(([key, value]) => {
+    if (value !== undefined) {
+      clean[key] = value;
+    }
+  });
+  return clean;
+}
 
 /**
  * Save or update a research paper in Firestore
@@ -25,9 +36,7 @@ export const SETTINGS_COLLECTION = 'settings';
 export async function savePaperToFirestore(paper: Paper): Promise<void> {
   const path = `${PAPERS_COLLECTION}/${paper.id}`;
   try {
-    await setDoc(doc(db, PAPERS_COLLECTION, paper.id), {
-      ...paper,
-    });
+    await setDoc(doc(db, PAPERS_COLLECTION, paper.id), stripUndefined(paper));
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -71,13 +80,11 @@ export function subscribeToPapers(
     return onSnapshot(
       colRef,
       (snapshot) => {
-        if (!snapshot.empty) {
-          const fetched: Paper[] = [];
-          snapshot.forEach((d) => {
-            fetched.push(d.data() as Paper);
-          });
-          onUpdate(fetched);
-        }
+        const fetched: Paper[] = [];
+        snapshot.forEach((d) => {
+          fetched.push(d.data() as Paper);
+        });
+        onUpdate(fetched);
       },
       (error) => {
         console.error('Papers snapshot error:', error);
@@ -174,9 +181,7 @@ export function subscribeToPaperRequests(
 export async function saveFatwaInquiryToFirestore(inquiry: UserSubmittedFatwa): Promise<void> {
   const path = `${FATWA_INQUIRIES_COLLECTION}/${inquiry.id}`;
   try {
-    await setDoc(doc(db, FATWA_INQUIRIES_COLLECTION, inquiry.id), {
-      ...inquiry,
-    });
+    await setDoc(doc(db, FATWA_INQUIRIES_COLLECTION, inquiry.id), stripUndefined(inquiry));
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -246,13 +251,11 @@ export function subscribeToFatwaInquiries(
     return onSnapshot(
       colRef,
       (snapshot) => {
-        if (!snapshot.empty) {
-          const fetched: UserSubmittedFatwa[] = [];
-          snapshot.forEach((d) => {
-            fetched.push(d.data() as UserSubmittedFatwa);
-          });
-          onUpdate(fetched);
-        }
+        const fetched: UserSubmittedFatwa[] = [];
+        snapshot.forEach((d) => {
+          fetched.push(d.data() as UserSubmittedFatwa);
+        });
+        onUpdate(fetched);
       },
       (error) => {
         console.error('Fatwa inquiries snapshot error:', error);
@@ -366,9 +369,7 @@ export function subscribeToAdminPin(
 export async function saveTeamMemberToFirestore(member: AdminContact): Promise<void> {
   const path = `${TEAM_MEMBERS_COLLECTION}/${member.id}`;
   try {
-    await setDoc(doc(db, TEAM_MEMBERS_COLLECTION, member.id), {
-      ...member,
-    });
+    await setDoc(doc(db, TEAM_MEMBERS_COLLECTION, member.id), stripUndefined(member));
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
@@ -398,13 +399,11 @@ export function subscribeToTeamMembers(
     return onSnapshot(
       colRef,
       (snapshot) => {
-        if (!snapshot.empty) {
-          const fetched: AdminContact[] = [];
-          snapshot.forEach((d) => {
-            fetched.push(d.data() as AdminContact);
-          });
-          onUpdate(fetched);
-        }
+        const fetched: AdminContact[] = [];
+        snapshot.forEach((d) => {
+          fetched.push(d.data() as AdminContact);
+        });
+        onUpdate(fetched);
       },
       (error) => {
         console.error('Team members snapshot error:', error);
@@ -417,3 +416,108 @@ export function subscribeToTeamMembers(
     return () => {};
   }
 }
+
+/**
+ * Subscribe to whether a specific user email has Admin access in Firestore
+ */
+export function subscribeToUserAdminStatus(
+  email: string,
+  onUpdate: (isListedAdmin: boolean) => void,
+  onError?: (err: Error) => void
+) {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail) {
+    onUpdate(false);
+    return () => {};
+  }
+  if (normalizedEmail === OWNER_ADMIN_EMAIL) {
+    onUpdate(true);
+    return () => {};
+  }
+
+  const path = `${ADMIN_USERS_COLLECTION}/${normalizedEmail}`;
+  try {
+    const docRef = doc(db, ADMIN_USERS_COLLECTION, normalizedEmail);
+    return onSnapshot(
+      docRef,
+      (docSnap) => {
+        onUpdate(docSnap.exists());
+      },
+      (error) => {
+        console.error('Admin status check error:', error);
+        if (onError) onError(error);
+        onUpdate(false);
+      }
+    );
+  } catch (error) {
+    console.error('Admin status subscription error:', path, error);
+    onUpdate(false);
+    return () => {};
+  }
+}
+
+/**
+ * Save or grant Admin access to a Gmail account in Firestore
+ */
+export async function saveAdminUserToFirestore(adminUser: AdminUser): Promise<void> {
+  const normalizedEmail = adminUser.email.trim().toLowerCase();
+  const path = `${ADMIN_USERS_COLLECTION}/${normalizedEmail}`;
+  try {
+    await setDoc(doc(db, ADMIN_USERS_COLLECTION, normalizedEmail), {
+      email: normalizedEmail,
+      name: adminUser.name?.trim() || '',
+      role: normalizedEmail === OWNER_ADMIN_EMAIL ? 'owner' : 'admin',
+      addedAt: adminUser.addedAt || new Date().toISOString().split('T')[0],
+      addedBy: adminUser.addedBy.trim().toLowerCase(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+/**
+ * Revoke Admin access from a Gmail account in Firestore
+ */
+export async function deleteAdminUserFromFirestore(email: string): Promise<void> {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (normalizedEmail === OWNER_ADMIN_EMAIL) {
+    throw new Error('ပင်မပိုင်ရှင် Admin အကောင့်ကို ဖယ်ရှား၍မရပါ။');
+  }
+  const path = `${ADMIN_USERS_COLLECTION}/${normalizedEmail}`;
+  try {
+    await deleteDoc(doc(db, ADMIN_USERS_COLLECTION, normalizedEmail));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+/**
+ * Subscribe to all authorized Admin Gmail accounts (only call when authenticated as Admin)
+ */
+export function subscribeToAdminUsers(
+  onUpdate: (admins: AdminUser[]) => void,
+  onError?: (err: Error) => void
+) {
+  try {
+    const colRef = collection(db, ADMIN_USERS_COLLECTION);
+    return onSnapshot(
+      colRef,
+      (snapshot) => {
+        const fetched: AdminUser[] = [];
+        snapshot.forEach((d) => {
+          fetched.push(d.data() as AdminUser);
+        });
+        onUpdate(fetched);
+      },
+      (error) => {
+        console.error('Admin users snapshot error:', error);
+        if (onError) onError(error);
+        handleFirestoreError(error, OperationType.LIST, ADMIN_USERS_COLLECTION);
+      }
+    );
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, ADMIN_USERS_COLLECTION);
+    return () => {};
+  }
+}
+

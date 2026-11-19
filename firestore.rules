@@ -10,63 +10,174 @@ service cloud.firestore {
       return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
+    function isValidEmailId(emailId) {
+      return emailId is string &&
+        emailId.size() >= 5 &&
+        emailId.size() <= 254 &&
+        emailId == emailId.lower() &&
+        emailId.matches('^[^/\\s@]+@[^/\\s@]+\\.[^/\\s@]+$');
+    }
+
     function incoming() {
       return request.resource.data;
     }
 
-    // Papers Collection
+    function isSignedInVerified() {
+      return request.auth != null &&
+        request.auth.token.email_verified == true &&
+        request.auth.token.email is string;
+    }
+
+    function isOwnerAdmin() {
+      return isSignedInVerified() &&
+        request.auth.token.email.lower() == 'maymaypiti@gmail.com';
+    }
+
+    function isAdmin() {
+      return isOwnerAdmin() || (
+        isSignedInVerified() &&
+        exists(/databases/$(database)/documents/admin_users/$(request.auth.token.email.lower()))
+      );
+    }
+
+    function isValidPaper(data) {
+      return data.keys().hasAll(['id', 'title', 'author', 'category', 'language', 'abstract']) &&
+        data.keys().hasOnly([
+          'id', 'title', 'titleOriginalScript', 'author', 'authorTitle',
+          'category', 'language', 'publicationYear', 'abstract', 'fullContent',
+          'tags', 'pages', 'downloadCount', 'readCount', 'uploadedAt',
+          'fileFormat', 'fileSize', 'isVerifiedByAcademy', 'referenceNumber',
+          'featured', 'telegramLink'
+        ]) &&
+        data.id is string && data.id.size() > 0 && data.id.size() <= 128 &&
+        data.title is string && data.title.size() > 0 && data.title.size() <= 300 &&
+        (!('titleOriginalScript' in data) || (data.titleOriginalScript is string && data.titleOriginalScript.size() <= 300)) &&
+        data.author is string && data.author.size() > 0 && data.author.size() <= 150 &&
+        (!('authorTitle' in data) || (data.authorTitle is string && data.authorTitle.size() <= 150)) &&
+        data.category is string && data.category.size() <= 64 &&
+        data.language is string && data.language.size() <= 32 &&
+        data.abstract is string && data.abstract.size() <= 4000 &&
+        (!('fullContent' in data) || (data.fullContent is string && data.fullContent.size() <= 100000)) &&
+        (!('tags' in data) || (data.tags is list && data.tags.size() <= 20)) &&
+        (!('telegramLink' in data) || data.telegramLink == null || (data.telegramLink is string && data.telegramLink.size() <= 500));
+    }
+
+    function isValidFatwaInquiry(data) {
+      return data.keys().hasAll([
+          'id', 'category', 'question', 'inquirerName',
+          'contactNumber', 'contactType', 'isAnonymous', 'submittedAt', 'status'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'category', 'question', 'inquirerName', 'contactNumber',
+          'contactType', 'city', 'isAnonymous', 'submittedAt', 'status',
+          'answerText', 'kitabReference', 'scholarName', 'answeredAt'
+        ]) &&
+        data.id is string && data.id.size() > 0 && data.id.size() <= 128 &&
+        data.question is string && data.question.size() > 0 && data.question.size() <= 4000 &&
+        data.inquirerName is string && data.inquirerName.size() <= 150 &&
+        data.contactNumber is string && data.contactNumber.size() <= 100 &&
+        (!('city' in data) || (data.city is string && data.city.size() <= 100)) &&
+        data.category in ['namaz', 'roza', 'hajj', 'zakat', 'trade_business', 'amal'] &&
+        data.contactType in ['whatsapp', 'telegram', 'phone'] &&
+        data.isAnonymous is bool &&
+        data.submittedAt is string && data.submittedAt.size() <= 64 &&
+        data.status in ['pending', 'answered'] &&
+        (!('answerText' in data) || (data.answerText is string && data.answerText.size() <= 10000)) &&
+        (!('kitabReference' in data) || (data.kitabReference is string && data.kitabReference.size() <= 500)) &&
+        (!('scholarName' in data) || (data.scholarName is string && data.scholarName.size() <= 200)) &&
+        (!('answeredAt' in data) || (data.answeredAt is string && data.answeredAt.size() <= 64));
+    }
+
+    function isValidTeamMember(data) {
+      return data.keys().hasAll(['id', 'nameMy', 'roleMy', 'phoneNumber', 'whatsappNumber']) &&
+        data.keys().hasOnly([
+          'id', 'name', 'nameMy', 'role', 'roleMy', 'whatsappNumber',
+          'displayWhatsapp', 'phoneNumber', 'displayPhone', 'email',
+          'activeHours', 'specialization', 'avatarSeed'
+        ]) &&
+        data.id is string && data.id.size() > 0 && data.id.size() <= 128 &&
+        data.nameMy is string && data.nameMy.size() > 0 && data.nameMy.size() <= 150 &&
+        data.roleMy is string && data.roleMy.size() > 0 && data.roleMy.size() <= 150 &&
+        data.phoneNumber is string && data.phoneNumber.size() <= 64 &&
+        data.whatsappNumber is string && data.whatsappNumber.size() <= 64 &&
+        (!('name' in data) || (data.name is string && data.name.size() <= 150)) &&
+        (!('role' in data) || (data.role is string && data.role.size() <= 150)) &&
+        (!('email' in data) || (data.email is string && data.email.size() <= 200)) &&
+        (!('activeHours' in data) || (data.activeHours is string && data.activeHours.size() <= 150)) &&
+        (!('specialization' in data) || (data.specialization is string && data.specialization.size() <= 300));
+    }
+
+    function isValidAppSetting(data) {
+      return data.keys().hasAll(['key', 'value']) &&
+        data.keys().hasOnly(['key', 'value', 'updatedAt']) &&
+        data.key is string && data.key.size() > 0 && data.key.size() <= 64 &&
+        data.value is string && data.value.size() <= 500 &&
+        (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64));
+    }
+
+    function isValidAdminUser(data) {
+      return data.keys().hasAll(['email', 'role', 'addedAt', 'addedBy']) &&
+        data.keys().hasOnly(['email', 'name', 'role', 'addedAt', 'addedBy']) &&
+        isValidEmailId(data.email) &&
+        (!('name' in data) || (data.name is string && data.name.size() <= 150)) &&
+        data.role in ['owner', 'admin'] &&
+        data.addedAt is string && data.addedAt.size() <= 64 &&
+        data.addedBy is string && data.addedBy.size() <= 254;
+    }
+
+    // Papers Collection (Public Read, Admin Write)
     match /papers/{paperId} {
       allow get, list: if true;
-      allow create: if isValidId(paperId) &&
-        incoming().keys().hasAll(['id', 'title', 'author', 'category', 'language', 'abstract']) &&
-        incoming().title is string && incoming().title.size() <= 300 &&
-        incoming().author is string && incoming().author.size() <= 150 &&
-        incoming().category is string && incoming().category.size() <= 64 &&
-        incoming().language is string && incoming().language.size() <= 32 &&
-        incoming().abstract is string && incoming().abstract.size() <= 4000;
-      allow update: if isValidId(paperId);
-      allow delete: if isValidId(paperId);
+      allow create, update: if isAdmin() && isValidId(paperId) && isValidPaper(incoming()) && incoming().id == paperId;
+      allow delete: if isAdmin() && isValidId(paperId);
     }
 
-    // Paper Research Requests Collection
+    // Paper Research Requests Collection (Admin Only)
     match /requests/{requestId} {
-      allow get, list: if true;
-      allow create: if isValidId(requestId) &&
-        incoming().keys().hasAll(['id', 'topic', 'requesterName', 'requesterContact', 'category', 'description', 'status', 'submittedAt']) &&
-        incoming().topic is string && incoming().topic.size() <= 300 &&
-        incoming().requesterName is string && incoming().requesterName.size() <= 150 &&
-        incoming().requesterContact is string && incoming().requesterContact.size() <= 100 &&
-        incoming().description is string && incoming().description.size() <= 3000 &&
-        incoming().status in ['pending', 'in_research', 'fulfilled'];
-      allow update: if isValidId(requestId);
-      allow delete: if isValidId(requestId);
+      allow get, list: if isAdmin();
+      allow create, update, delete: if isAdmin() && isValidId(requestId);
     }
 
-    // Fatwa Inquiries Collection
+    // Fatwa Inquiries Collection (Public Read & Question Submit, Admin Answer/Delete)
     match /fatwa_inquiries/{inquiryId} {
       allow get, list: if true;
       allow create: if isValidId(inquiryId) &&
-        incoming().keys().hasAll(['id', 'category', 'question', 'inquirerName', 'contactNumber', 'contactType', 'isAnonymous', 'submittedAt', 'status']) &&
-        incoming().question is string && incoming().question.size() <= 4000 &&
-        incoming().inquirerName is string && incoming().inquirerName.size() <= 150 &&
-        incoming().contactNumber is string && incoming().contactNumber.size() <= 100 &&
-        incoming().category in ['namaz', 'roza', 'hajj', 'zakat', 'trade_business', 'amal'] &&
-        incoming().contactType in ['whatsapp', 'telegram', 'phone'] &&
-        incoming().status in ['pending', 'answered'];
-      allow update: if isValidId(inquiryId);
-      allow delete: if isValidId(inquiryId);
+        isValidFatwaInquiry(incoming()) &&
+        incoming().id == inquiryId &&
+        incoming().status == 'pending' &&
+        !incoming().keys().hasAny(['answerText', 'kitabReference', 'scholarName', 'answeredAt']);
+      allow update: if isAdmin() && isValidId(inquiryId) && isValidFatwaInquiry(incoming()) && incoming().id == inquiryId;
+      allow delete: if isAdmin() && isValidId(inquiryId);
     }
 
-    // Organization Team Members / Scholars Collection
+    // Organization Team Members / Contacts Collection (Public Read, Admin Write)
     match /team_members/{memberId} {
       allow get, list: if true;
-      allow create, update, delete: if isValidId(memberId);
+      allow create, update: if isAdmin() && isValidId(memberId) && isValidTeamMember(incoming()) && incoming().id == memberId;
+      allow delete: if isAdmin() && isValidId(memberId);
     }
 
-    // App Settings Collection (Telegram config, Admin PIN, etc.)
+    // App Settings Collection (Public read only for telegram_channel, Admin Read/Write all)
     match /settings/{settingId} {
-      allow get, list: if true;
-      allow create, update, delete: if isValidId(settingId);
+      allow get: if settingId == 'telegram_channel' || isAdmin();
+      allow list: if isAdmin();
+      allow create, update: if isAdmin() && isValidId(settingId) && isValidAppSetting(incoming());
+      allow delete: if isAdmin() && isValidId(settingId);
+    }
+
+    // Authorized Admin Users Collection (Strict PII & RBAC Protection)
+    match /admin_users/{adminEmail} {
+      allow get: if isSignedInVerified() && (
+        request.auth.token.email.lower() == adminEmail || isAdmin()
+      );
+      allow list: if isAdmin();
+      allow create, update: if isAdmin() &&
+        isValidEmailId(adminEmail) &&
+        isValidAdminUser(incoming()) &&
+        incoming().email == adminEmail;
+      allow delete: if isAdmin() &&
+        isValidEmailId(adminEmail) &&
+        adminEmail != 'maymaypiti@gmail.com';
     }
   }
 }

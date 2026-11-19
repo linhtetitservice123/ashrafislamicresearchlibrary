@@ -505,7 +505,7 @@ export const FatwaSection: React.FC<FatwaSectionProps> = ({
                 <span>အဟ်လေစွန္နသ်ဝလ်ဂျမာအသ် ဟနဖီလမ်းစဉ်အတိုင်း စိစစ်ဖြေကြားပါသည်</span>
               </div>
 
-              <div className="flex items-center gap-2.5">
+              <div className="flex flex-wrap items-center gap-2.5">
                 <button
                   type="button"
                   onClick={handleSendViaWhatsApp}
@@ -551,7 +551,7 @@ export const FatwaSection: React.FC<FatwaSectionProps> = ({
           </div>
 
           {/* View mode toggle: Shelves (အကန့်များ) vs Filtered Single Category */}
-          <div className="flex items-center gap-2 self-start md:self-auto">
+          <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
             <button
               onClick={() => {
                 setViewMode('shelves');
@@ -600,13 +600,13 @@ export const FatwaSection: React.FC<FatwaSectionProps> = ({
           </div>
 
           {/* Category Filter Pills */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+          <div className="flex flex-wrap items-center gap-2 pb-1">
             <button
               onClick={() => {
                 setSelectedCategory('all');
                 setViewMode('shelves');
               }}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-bold shrink-0 border transition-all ${
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all ${
                 selectedCategory === 'all'
                   ? 'bg-[#8B5A2B] text-white border-[#8B5A2B] shadow-sm'
                   : 'bg-white text-[#5C3B24] border-[#D9C4AC] hover:bg-[#FAF6F0]'
@@ -952,8 +952,8 @@ const FatwaCard: React.FC<FatwaCardProps> = ({
       </div>
 
       {/* Footer Actions */}
-      <div className="pt-3 border-t border-[#F0E6D8] flex items-center justify-between gap-2 text-xs">
-        <div className="flex items-center gap-1.5">
+      <div className="pt-3 border-t border-[#F0E6D8] flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="flex flex-wrap items-center gap-1.5">
           <button
             onClick={onOpenModal}
             className="px-3 py-1.5 bg-[#8B5A2B] hover:bg-[#6E421B] text-white rounded-lg font-semibold flex items-center gap-1 shadow-sm transition-colors"

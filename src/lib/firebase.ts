@@ -1,20 +1,19 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import {
   getFirestore,
   doc,
   getDocFromServer,
-  collection,
-  getDocs,
-  setDoc,
-  updateDoc,
-  onSnapshot,
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
+export const googleAuthProvider = new GoogleAuthProvider();
+googleAuthProvider.setCustomParameters({ prompt: 'select_account' });
+
+export const OWNER_ADMIN_EMAIL = 'maymaypiti@gmail.com';
 
 export enum OperationType {
   CREATE = 'create',

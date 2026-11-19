@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+@layer base {
+  html,
+  body {
+    overflow-x: hidden;
+    max-width: 100%;
+  }
+}
+
 @layer utilities {
   .font-urdu {
     font-family: 'Jameel Noori Nastaleeq', 'Noto Nastaliq Urdu', 'Alvi Nastaleeq', serif;
@@ -33,7 +41,6 @@
   background-image: radial-gradient(#8B5A2B 0.65px, transparent 0.65px), radial-gradient(#8B5A2B 0.65px, #FAF7F2 0.65px);
   background-size: 26px 26px;
   background-position: 0 0, 13px 13px;
-  background-opacity: 0.06;
 }
 
 .bg-islamic-dark {

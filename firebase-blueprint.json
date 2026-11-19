@@ -15,6 +15,7 @@
         "publicationYear": { "type": "string", "maxLength": 32 },
         "abstract": { "type": "string", "maxLength": 4000 },
         "fullContent": { "type": "string", "maxLength": 100000 },
+        "tags": { "type": "array" },
         "pages": { "type": "number" },
         "downloadCount": { "type": "number" },
         "readCount": { "type": "number" },
@@ -23,6 +24,7 @@
         "fileSize": { "type": "string", "maxLength": 32 },
         "isVerifiedByAcademy": { "type": "boolean" },
         "referenceNumber": { "type": "string", "maxLength": 64 },
+        "featured": { "type": "boolean" },
         "telegramLink": { "type": "string", "maxLength": 500 }
       },
       "required": ["id", "title", "author", "category", "language", "abstract"]
@@ -60,9 +62,34 @@
         "city": { "type": "string", "maxLength": 100 },
         "isAnonymous": { "type": "boolean" },
         "submittedAt": { "type": "string", "maxLength": 64 },
-        "status": { "type": "string", "enum": ["pending", "answered"] }
+        "status": { "type": "string", "enum": ["pending", "answered"] },
+        "answerText": { "type": "string", "maxLength": 10000 },
+        "kitabReference": { "type": "string", "maxLength": 500 },
+        "scholarName": { "type": "string", "maxLength": 200 },
+        "answeredAt": { "type": "string", "maxLength": 64 }
       },
       "required": ["id", "category", "question", "inquirerName", "contactNumber", "contactType", "isAnonymous", "submittedAt", "status"]
+    },
+    "AdminContact": {
+      "title": "Organization Team Member",
+      "description": "Official team member or scholar contact entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 150 },
+        "nameMy": { "type": "string", "maxLength": 150 },
+        "role": { "type": "string", "maxLength": 150 },
+        "roleMy": { "type": "string", "maxLength": 150 },
+        "whatsappNumber": { "type": "string", "maxLength": 64 },
+        "displayWhatsapp": { "type": "string", "maxLength": 64 },
+        "phoneNumber": { "type": "string", "maxLength": 64 },
+        "displayPhone": { "type": "string", "maxLength": 64 },
+        "email": { "type": "string", "maxLength": 200 },
+        "activeHours": { "type": "string", "maxLength": 150 },
+        "specialization": { "type": "string", "maxLength": 300 },
+        "avatarSeed": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["id", "nameMy", "roleMy", "phoneNumber", "whatsappNumber"]
     },
     "AppSetting": {
       "title": "Application Configuration",
@@ -74,6 +101,19 @@
         "updatedAt": { "type": "string", "maxLength": 64 }
       },
       "required": ["key", "value"]
+    },
+    "AdminUser": {
+      "title": "Authorized Admin Account",
+      "description": "Gmail accounts granted Admin Control Panel access",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "maxLength": 254 },
+        "name": { "type": "string", "maxLength": 150 },
+        "role": { "type": "string", "enum": ["owner", "admin"] },
+        "addedAt": { "type": "string", "maxLength": 64 },
+        "addedBy": { "type": "string", "maxLength": 254 }
+      },
+      "required": ["email", "role", "addedAt", "addedBy"]
     }
   },
   "firestore": {
@@ -89,9 +129,17 @@
       "schema": "UserSubmittedFatwa",
       "description": "Fatwa questions submitted by community members"
     },
+    "/team_members/{memberId}": {
+      "schema": "AdminContact",
+      "description": "Organization team members and contact numbers managed by Admin"
+    },
     "/settings/{settingId}": {
       "schema": "AppSetting",
       "description": "Global app configurations such as Telegram Channel DB link"
+    },
+    "/admin_users/{adminEmail}": {
+      "schema": "AdminUser",
+      "description": "Authorized Admin Gmail accounts managed by Owner/Admins"
     }
   }
 }

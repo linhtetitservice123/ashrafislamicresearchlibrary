@@ -111,3 +111,10 @@ export interface UserSubmittedFatwa {
   answeredAt?: string;
 }
 
+export interface AdminUser {
+  email: string;
+  name?: string;
+  role: 'owner' | 'admin';
+  addedAt: string;
+  addedBy: string;
+}

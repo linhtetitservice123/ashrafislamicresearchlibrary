@@ -335,7 +335,7 @@ export const PaperReaderModal: React.FC<PaperReaderModalProps> = ({
             <span>စာမျက်နှာ {paper.pages} မျက်နှာ ({paper.fileSize})</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Telegram Link & Post Generator */}
             {onOpenTelegramPostLink && (
               <button

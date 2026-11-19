@@ -3,7 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import {
+  onAuthStateChanged,
+  signInWithPopup,
+  signOut,
+  type User,
+} from 'firebase/auth';
 import {
   BookOpen,
   Bookmark,
@@ -23,8 +29,15 @@ import {
   Layers,
   ArrowUpDown,
 } from 'lucide-react';
-import { LanguageType, Paper, PaperCategory, UserSubmittedFatwa, AdminContact } from './types';
+import {
+  Paper,
+  PaperCategory,
+  UserSubmittedFatwa,
+  AdminContact,
+  AdminUser,
+} from './types';
 import { INITIAL_PAPERS, INITIAL_ADMIN_CONTACTS, CATEGORIES_CONFIG, DEFAULT_TELEGRAM_DB_URL } from './data/initialData';
+import { auth, googleAuthProvider, OWNER_ADMIN_EMAIL } from './lib/firebase';
 import { Header } from './components/Header';
 import { HeroSection } from './components/HeroSection';
 import { PaperCard } from './components/PaperCard';
@@ -49,11 +62,13 @@ import {
   answerFatwaInquiryInFirestore,
   deleteFatwaInquiryFromFirestore,
   subscribeToFatwaInquiries,
-  saveAdminPinToFirestore,
-  subscribeToAdminPin,
   saveTeamMemberToFirestore,
   deleteTeamMemberFromFirestore,
   subscribeToTeamMembers,
+  subscribeToUserAdminStatus,
+  saveAdminUserToFirestore,
+  deleteAdminUserFromFirestore,
+  subscribeToAdminUsers,
 } from './services/firestoreService';
 
 export default function App() {
@@ -118,16 +133,20 @@ export default function App() {
     return DEFAULT_TELEGRAM_DB_URL;
   });
 
-  // Admin PIN code state (default: 7860, syncs with Firestore settings)
-  const [adminPin, setAdminPin] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem('ira_admin_pin');
-      if (saved && saved.trim()) return saved.trim();
-    } catch (e) {
-      console.error(e);
-    }
-    return '7860';
-  });
+  // Firebase Google Auth & Admin Authorization state
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState<boolean>(true);
+  const [isListedAdmin, setIsListedAdmin] = useState<boolean>(false);
+  const [adminCheckDone, setAdminCheckDone] = useState<boolean>(false);
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
+  const justSignedInRef = useRef<boolean>(false);
+
+  const normalizedAuthEmail = authUser?.email?.trim().toLowerCase() || '';
+  const isAdmin = Boolean(
+    authUser &&
+      authUser.emailVerified &&
+      (normalizedAuthEmail === OWNER_ADMIN_EMAIL || isListedAdmin)
+  );
 
   // User submitted Fatwa inquiries state (syncs with Firestore)
   const [userFatwas, setUserFatwas] = useState<UserSubmittedFatwa[]>(() => {
@@ -144,7 +163,6 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState<'papers' | 'fatwa' | 'bookmarks' | 'contact' | 'admin'>('papers');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<PaperCategory | 'all'>('all');
-  const [selectedLanguage, setSelectedLanguage] = useState<LanguageType | 'all'>('all');
   const [sortBy, setSortBy] = useState<'recent' | 'popular' | 'downloads' | 'pages'>('recent');
   const [viewMode, setViewMode] = useState<'categories' | 'grid'>('categories');
 
@@ -225,75 +243,139 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('ira_admin_pin', adminPin);
-    } catch (e) {
-      console.error(e);
-    }
-  }, [adminPin]);
-
-  useEffect(() => {
-    try {
       localStorage.setItem('ira_user_fatwas', JSON.stringify(userFatwas));
     } catch (e) {
       console.error(e);
     }
   }, [userFatwas]);
 
-  // Firestore real-time synchronization
+  // Listen to Firebase Google Auth state
   useEffect(() => {
-    const unsubPapers = subscribeToPapers((remotePapers) => {
-      if (remotePapers) {
-        // Filter out legacy demo papers
-        const cleanRemote = remotePapers.filter((p) => p && !p.id.startsWith('paper-00'));
-        setPapers((prev) => {
-          const map = new Map<string, Paper>();
-          (Array.isArray(prev) ? prev : [])
-            .filter((p) => p && !p.id.startsWith('paper-00'))
-            .forEach((p) => map.set(p.id, p));
-          cleanRemote.forEach((p) => map.set(p.id, p));
-          return Array.from(map.values());
-        });
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setAuthUser(user);
+      setAuthLoading(false);
+      if (!user) {
+        setIsListedAdmin(false);
+        setAdminCheckDone(true);
+        setAdminUsers([]);
+      } else {
+        setAdminCheckDone(false);
       }
     });
+    return () => unsubscribe();
+  }, []);
 
-    const unsubTeam = subscribeToTeamMembers((remoteMembers) => {
-      if (remoteMembers) {
+  // Check if signed-in Google user is authorized Admin in Firestore
+  useEffect(() => {
+    if (!authUser?.email || !authUser.emailVerified) {
+      setIsListedAdmin(false);
+      setAdminCheckDone(true);
+      return;
+    }
+
+    const emailLower = authUser.email.trim().toLowerCase();
+    if (emailLower === OWNER_ADMIN_EMAIL) {
+      setIsListedAdmin(true);
+      setAdminCheckDone(true);
+      return;
+    }
+
+    const unsub = subscribeToUserAdminStatus(
+      emailLower,
+      (listed) => {
+        setIsListedAdmin(listed);
+        setAdminCheckDone(true);
+      },
+      () => {
+        setIsListedAdmin(false);
+        setAdminCheckDone(true);
+      }
+    );
+
+    return () => unsub();
+  }, [authUser]);
+
+  // Auto-open Admin Panel immediately after authorized Admin signs in
+  useEffect(() => {
+    if (authLoading || !adminCheckDone) return;
+    if (justSignedInRef.current && authUser) {
+      justSignedInRef.current = false;
+      if (isAdmin) {
+        setCurrentTab('admin');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        showToast('Admin အဖြစ် အောင်မြင်စွာ ဝင်ရောက်ပြီးပါပြီ ✓');
+      } else {
+        showToast(`${authUser.displayName || authUser.email} အဖြစ် ဝင်ရောက်ပြီးပါပြီ ✓`);
+      }
+    }
+  }, [isAdmin, adminCheckDone, authLoading, authUser]);
+
+  // Protect admin tab if user logs out or admin privileges are revoked
+  useEffect(() => {
+    if (currentTab === 'admin' && !authLoading && adminCheckDone && !isAdmin) {
+      setCurrentTab('papers');
+    }
+  }, [currentTab, isAdmin, authLoading, adminCheckDone]);
+
+  // Subscribe to authorized admin list ONLY when authenticated as an Admin
+  useEffect(() => {
+    if (!isAdmin) {
+      setAdminUsers([]);
+      return;
+    }
+    const unsubAdmins = subscribeToAdminUsers(
+      (remoteAdmins) => {
+        setAdminUsers(remoteAdmins);
+      },
+      (err) => {
+        console.warn('Admin users sync error:', err);
+      }
+    );
+    return () => unsubAdmins();
+  }, [isAdmin]);
+
+  // Firestore real-time synchronization for public data
+  useEffect(() => {
+    const unsubPapers = subscribeToPapers(
+      (remotePapers) => {
+        const cleanRemote = remotePapers.filter((p) => p && !p.id.startsWith('paper-00'));
+        setPapers(cleanRemote);
+      },
+      (err) => console.warn('Papers sync error:', err)
+    );
+
+    const unsubTeam = subscribeToTeamMembers(
+      (remoteMembers) => {
         const cleanMembers = remoteMembers.filter((m) => m && !m.nameMy?.includes('မုဖ်သီ အုမရ်'));
         setTeamMembers(cleanMembers);
-      }
-    });
+      },
+      (err) => console.warn('Team members sync error:', err)
+    );
 
-    const unsubChannelUrl = subscribeToTelegramChannelUrl((remoteUrl) => {
-      if (remoteUrl && remoteUrl.trim()) {
-        setTelegramDbUrl(remoteUrl.trim());
-      }
-    });
+    const unsubChannelUrl = subscribeToTelegramChannelUrl(
+      (remoteUrl) => {
+        if (remoteUrl && remoteUrl.trim()) {
+          setTelegramDbUrl(remoteUrl.trim());
+        }
+      },
+      (err) => console.warn('Channel URL sync error:', err)
+    );
 
-    const unsubFatwas = subscribeToFatwaInquiries((remoteFatwas) => {
-      if (remoteFatwas && remoteFatwas.length > 0) {
-        setUserFatwas((prev) => {
-          const map = new Map<string, UserSubmittedFatwa>();
-          (Array.isArray(prev) ? prev : []).forEach((f) => map.set(f.id, f));
-          remoteFatwas.forEach((f) => map.set(f.id, f));
-          return Array.from(map.values()).sort(
-            (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
-          );
-        });
-      }
-    });
-
-    const unsubAdminPin = subscribeToAdminPin((remotePin) => {
-      if (remotePin && remotePin.trim()) {
-        setAdminPin(remotePin.trim());
-      }
-    });
+    const unsubFatwas = subscribeToFatwaInquiries(
+      (remoteFatwas) => {
+        const sorted = [...remoteFatwas].sort(
+          (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+        );
+        setUserFatwas(sorted);
+      },
+      (err) => console.warn('Fatwa inquiries sync error:', err)
+    );
 
     return () => {
       unsubPapers();
       unsubTeam();
       unsubChannelUrl();
       unsubFatwas();
-      unsubAdminPin();
     };
   }, []);
 
@@ -378,13 +460,47 @@ export default function App() {
     showToast('ဖသ်ဝါမေးခွန်းအား ဖျက်ပစ်ပြီးပါပြီ ✓');
   };
 
-  // Admin Handler: Change Admin PIN
-  const handleSaveAdminPin = (newPin: string) => {
-    setAdminPin(newPin);
-    saveAdminPinToFirestore(newPin).catch((err) =>
-      console.warn('Admin PIN saved locally, Firestore sync error:', err)
-    );
-    showToast('Admin PIN ကုဒ် အသစ်အား သိမ်းဆည်းပြီးပါပြီ ✓');
+  // Google Auth Handlers
+  const handleGoogleLogin = async () => {
+    try {
+      justSignedInRef.current = true;
+      await signInWithPopup(auth, googleAuthProvider);
+    } catch (err: any) {
+      justSignedInRef.current = false;
+      if (err?.code === 'auth/popup-closed-by-user' || err?.code === 'auth/cancelled-popup-request') {
+        return;
+      }
+      console.error('Google Sign-In error:', err);
+      showToast('Google အကောင့်ဖြင့် ဝင်ရောက်ရာတွင် အဆင်မပြေပါ။ ထပ်မံကြိုးစားပါ။');
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      justSignedInRef.current = false;
+      await signOut(auth);
+      setCurrentTab('papers');
+      showToast('အကောင့်မှ အောင်မြင်စွာ ထွက်ခွာပြီးပါပြီ ✓');
+    } catch (err) {
+      console.error('Sign-Out error:', err);
+    }
+  };
+
+  // Admin Account Management Handlers
+  const handleAddAdminUser = async (email: string, name?: string) => {
+    const normalized = email.trim().toLowerCase();
+    const adminEntry: AdminUser = {
+      email: normalized,
+      name: name?.trim() || '',
+      role: 'admin',
+      addedAt: new Date().toISOString().split('T')[0],
+      addedBy: normalizedAuthEmail || OWNER_ADMIN_EMAIL,
+    };
+    await saveAdminUserToFirestore(adminEntry);
+  };
+
+  const handleRemoveAdminUser = async (email: string) => {
+    await deleteAdminUserFromFirestore(email);
   };
 
   // Handler to update a book's specific Telegram post link
@@ -511,11 +627,6 @@ export default function App() {
       result = result.filter((p) => p && p.category === selectedCategory);
     }
 
-    // Language filter
-    if (selectedLanguage !== 'all') {
-      result = result.filter((p) => p && p.language === selectedLanguage);
-    }
-
     // Search query filter
     if (searchQuery && searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
@@ -543,7 +654,7 @@ export default function App() {
     });
 
     return result;
-  }, [papers, bookmarks, currentTab, selectedCategory, selectedLanguage, searchQuery, sortBy]);
+  }, [papers, bookmarks, currentTab, selectedCategory, searchQuery, sortBy]);
 
   // Grouped by categories map
   const categorizedPapersMap = useMemo(() => {
@@ -583,15 +694,18 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#FAF7F2] text-[#2C1810]">
+    <div className="min-h-screen w-full overflow-x-hidden flex flex-col bg-[#FAF7F2] text-[#2C1810]">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 bg-[#26150C] text-[#FAF7F2] border border-[#229ED9] px-4 py-3 rounded-xl shadow-2xl flex items-center gap-2.5 text-xs sm:text-sm font-burmese animate-bounce">
-          <Send className="w-4 h-4 text-[#229ED9] fill-current shrink-0" />
-          <span>{toastMessage}</span>
+        <div className="fixed top-4 left-4 right-4 sm:left-auto sm:right-5 sm:max-w-md z-50 bg-[#26150C] text-[#FAF7F2] border border-[#229ED9] px-4 py-3 rounded-xl shadow-2xl flex items-center justify-between gap-2.5 text-xs sm:text-sm font-burmese">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Send className="w-4 h-4 text-[#229ED9] fill-current shrink-0" />
+            <span className="break-words">{toastMessage}</span>
+          </div>
           <button
             onClick={() => setToastMessage(null)}
-            className="ml-2 text-[#D9C4AC] hover:text-white"
+            className="text-[#D9C4AC] hover:text-white shrink-0"
+            aria-label="Close notification"
           >
             <X className="w-4 h-4" />
           </button>
@@ -606,14 +720,12 @@ export default function App() {
           setAdminInquiryTopic('');
           setIsAdminModalOpen(true);
         }}
-        openGitHubModal={() => setIsGitHubModalOpen(true)}
-        openTelegramModal={() => setIsTelegramModalOpen(true)}
-        openTelegramPostLinkModal={() => {
-          setTelegramPostLinkPaperId(null);
-          setIsTelegramPostLinkModalOpen(true);
-        }}
-        telegramDbUrl={telegramDbUrl}
         bookmarkCount={bookmarks.length}
+        authUser={authUser}
+        authLoading={authLoading}
+        isAdmin={isAdmin}
+        onLogin={handleGoogleLogin}
+        onLogout={handleLogout}
       />
 
       {/* Hero Section (Visible in Papers tab and Bookmarks tab) */}
@@ -621,8 +733,6 @@ export default function App() {
         <HeroSection
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
-          selectedLanguage={selectedLanguage}
-          setSelectedLanguage={setSelectedLanguage}
           openFatwaTab={() => setCurrentTab('fatwa')}
           openAdminModal={() => {
             setAdminInquiryTopic('');
@@ -636,14 +746,14 @@ export default function App() {
       <main className="flex-1">
         {/* TAB 1: PAPERS REPOSITORY & BOOKMARKS */}
         {(currentTab === 'papers' || currentTab === 'bookmarks') && (
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 font-burmese">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 font-burmese">
             {/* Header info bar for Bookmarks tab */}
             {currentTab === 'bookmarks' && (
-              <div className="mb-6 p-4 bg-white rounded-2xl border border-[#DFD1BF] shadow-sm flex items-center justify-between">
-                <div className="flex items-center gap-2.5 text-[#8B5A2B]">
-                  <Bookmark className="w-5 h-5 fill-[#8B5A2B]" />
-                  <div>
-                    <h2 className="text-lg font-bold text-[#2C1810]">
+              <div className="mb-6 p-4 bg-white rounded-2xl border border-[#DFD1BF] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 text-[#8B5A2B] min-w-0">
+                  <Bookmark className="w-5 h-5 fill-[#8B5A2B] shrink-0" />
+                  <div className="min-w-0">
+                    <h2 className="text-base sm:text-lg font-bold text-[#2C1810] truncate">
                       သင်သိမ်းဆည်းထားသော စာအုပ်စာတမ်းများ ({bookmarks.length})
                     </h2>
                     <p className="text-xs text-[#7A6353]">Saved Research Treatises</p>
@@ -651,7 +761,7 @@ export default function App() {
                 </div>
                 <button
                   onClick={() => setCurrentTab('papers')}
-                  className="px-3.5 py-1.5 text-xs bg-[#FAF7F2] hover:bg-[#F0E6D8] text-[#543825] font-semibold rounded-xl border border-[#D9C4AC]"
+                  className="self-start sm:self-auto px-3.5 py-1.5 text-xs bg-[#FAF7F2] hover:bg-[#F0E6D8] text-[#543825] font-semibold rounded-xl border border-[#D9C4AC] shrink-0"
                 >
                   စာတမ်းအားလုံးသို့ ပြန်သွားမည်
                 </button>
@@ -661,16 +771,16 @@ export default function App() {
             {/* Filter and Category Controls */}
             <div className="mb-6 space-y-3">
               {/* Category Quick Filter Pills */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={() => setSelectedCategory('all')}
-                  className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap transition-all border ${
+                  className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all border ${
                     selectedCategory === 'all'
                       ? 'bg-[#8B5A2B] text-white border-[#8B5A2B] shadow-md'
                       : 'bg-white text-[#5C3B23] border-[#DFD1BF] hover:bg-[#FAF7F2]'
                   }`}
                 >
-                  ကဏ္ဍအားလုံး (All Categories)
+                  ကဏ္ဍအားလုံး (All)
                 </button>
 
                 {Object.entries(CATEGORIES_CONFIG).map(([key, config]) => {
@@ -680,7 +790,7 @@ export default function App() {
                     <button
                       key={key}
                       onClick={() => setSelectedCategory(key as PaperCategory)}
-                      className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap transition-all border flex items-center gap-1.5 ${
+                      className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-medium transition-all border flex items-center gap-1.5 ${
                         isSelected
                           ? 'bg-[#8B5A2B] text-white border-[#8B5A2B] shadow-md'
                           : 'bg-white text-[#5C3B23] border-[#DFD1BF] hover:bg-[#FAF7F2]'
@@ -696,8 +806,8 @@ export default function App() {
               </div>
 
               {/* View Mode Toggle & Secondary Controls Bar */}
-              <div className="bg-white rounded-xl p-3 border border-[#E5DACB] flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm">
-                <div className="flex items-center gap-1.5 bg-[#FAF7F2] p-1 rounded-xl border border-[#DFD1BF]">
+              <div className="bg-white rounded-xl p-3 border border-[#E5DACB] flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 text-xs sm:text-sm">
+                <div className="flex items-center gap-1.5 bg-[#FAF7F2] p-1 rounded-xl border border-[#DFD1BF] self-start">
                   <button
                     onClick={() => setViewMode('categories')}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
@@ -707,7 +817,7 @@ export default function App() {
                     }`}
                     title="စာအုပ်များကို ကဏ္ဍအလိုက် သပ်သပ်စီခွဲ၍ စာအုပ်စင်များအဖြစ် ကြည့်ရှုရန်"
                   >
-                    <FolderKanban className="w-3.5 h-3.5" />
+                    <FolderKanban className="w-3.5 h-3.5 shrink-0" />
                     <span>ကဏ္ဍအလိုက် စာအုပ်စင်များ</span>
                   </button>
 
@@ -720,53 +830,54 @@ export default function App() {
                     }`}
                     title="စာအုပ်အားလုံးကို ဇယားကွက်ပြားဖြင့် ကြည့်ရှုရန်"
                   >
-                    <LayoutGrid className="w-3.5 h-3.5" />
+                    <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
                     <span>ဇယားကွက်ဖြင့် (Grid)</span>
                   </button>
                 </div>
 
-                <div className="flex items-center gap-2 text-[#735A46]">
-                  <Layers className="w-4 h-4 text-[#8B5A2B]" />
-                  <span>
-                    တွေ့ရှိသော စာအုပ်စာတမ်း:{' '}
-                    <strong className="text-[#2C1810] font-mono text-base">{filteredPapers.length}</strong> အုပ်
-                  </span>
-                  {(selectedCategory !== 'all' || selectedLanguage !== 'all' || searchQuery) && (
-                    <button
-                      onClick={() => {
-                        setSelectedCategory('all');
-                        setSelectedLanguage('all');
-                        setSearchQuery('');
-                      }}
-                      className="ml-2 px-2 py-0.5 bg-[#FAF7F2] text-[#8B5A2B] hover:text-[#5C361C] border border-[#D9C4AC] rounded-md font-semibold text-xs"
-                    >
-                      အားလုံးရှင်းမည် (Reset)
-                    </button>
-                  )}
-                </div>
+                <div className="flex flex-wrap items-center justify-between lg:justify-end gap-3">
+                  <div className="flex items-center gap-2 text-[#735A46]">
+                    <Layers className="w-4 h-4 text-[#8B5A2B] shrink-0" />
+                    <span>
+                      တွေ့ရှိသော စာအုပ်စာတမ်း:{' '}
+                      <strong className="text-[#2C1810] font-mono text-base">{filteredPapers.length}</strong> အုပ်
+                    </span>
+                    {(selectedCategory !== 'all' || searchQuery) && (
+                      <button
+                        onClick={() => {
+                          setSelectedCategory('all');
+                          setSearchQuery('');
+                        }}
+                        className="ml-1 px-2 py-0.5 bg-[#FAF7F2] text-[#8B5A2B] hover:text-[#5C361C] border border-[#D9C4AC] rounded-md font-semibold text-xs"
+                      >
+                        ရှင်းမည်
+                      </button>
+                    )}
+                  </div>
 
-                {/* Sort Option */}
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-[#8C7667] flex items-center gap-1">
-                    <ArrowUpDown className="w-3.5 h-3.5" /> စီစဉ်ရန်:
-                  </span>
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as any)}
-                    className="bg-[#FAF7F2] border border-[#D9C4AC] rounded-lg px-2.5 py-1 text-xs text-[#3B2011] focus:outline-none font-medium"
-                  >
-                    <option value="recent">နောက်ဆုံးတင်ထားသော စာတမ်းများ</option>
-                    <option value="popular">ဖတ်ရှုသူ အများဆုံး (Most Read)</option>
-                    <option value="downloads">ဒေါင်းလုဒ် အများဆုံး (Most Downloaded)</option>
-                    <option value="pages">စာမျက်နှာ အများဆုံး</option>
-                  </select>
+                  {/* Sort Option */}
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <span className="text-xs text-[#8C7667] flex items-center gap-1 shrink-0">
+                      <ArrowUpDown className="w-3.5 h-3.5" /> စီစဉ်ရန်:
+                    </span>
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value as any)}
+                      className="flex-1 sm:flex-initial bg-[#FAF7F2] border border-[#D9C4AC] rounded-lg px-2.5 py-1.5 text-xs text-[#3B2011] focus:outline-none font-medium"
+                    >
+                      <option value="recent">နောက်ဆုံးတင်ထားသော စာတမ်းများ</option>
+                      <option value="popular">ဖတ်ရှုသူ အများဆုံး (Most Read)</option>
+                      <option value="downloads">ဒေါင်းလုဒ် အများဆုံး (Most Downloaded)</option>
+                      <option value="pages">စာမျက်နှာ အများဆုံး</option>
+                    </select>
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Papers Display Area */}
             {filteredPapers.length === 0 ? (
-              <div className="bg-white rounded-3xl border border-[#DFD1BF] p-10 sm:p-14 text-center text-[#8C7667] shadow-sm max-w-2xl mx-auto my-6">
+              <div className="bg-white rounded-3xl border border-[#DFD1BF] p-8 sm:p-14 text-center text-[#8C7667] shadow-sm max-w-2xl mx-auto my-6">
                 <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[#FAF7F2] border border-[#E8DEC9] flex items-center justify-center text-[#8B5A2B] shadow-inner">
                   <BookOpen className="w-8 h-8" />
                 </div>
@@ -785,7 +896,6 @@ export default function App() {
                     <button
                       onClick={() => {
                         setSelectedCategory('all');
-                        setSelectedLanguage('all');
                         setSearchQuery('');
                       }}
                       className="px-4 py-2.5 bg-[#FAF7F2] hover:bg-[#F2ECE1] border border-[#D9C4AC] text-[#543825] rounded-xl text-xs font-semibold"
@@ -836,7 +946,7 @@ export default function App() {
                         </div>
 
                         {/* Actions for this category */}
-                        <div className="flex items-center gap-2 self-start sm:self-auto">
+                        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
                           <button
                             onClick={() => setSelectedCategory(catKey as PaperCategory)}
                             className="px-3 py-1.5 bg-white hover:bg-[#F5EDE1] text-[#633A18] rounded-xl border border-[#D9C4AC] text-xs font-semibold flex items-center gap-1 transition-colors"
@@ -870,10 +980,14 @@ export default function App() {
                             onOpenReader={handleOpenReader}
                             onOpenAdminInquiry={handleOpenAdminInquiryWithPaper}
                             onOpenTelegram={handleOpenTelegram}
-                            onOpenTelegramPostLink={(p) => {
-                              setTelegramPostLinkPaperId(p.id);
-                              setIsTelegramPostLinkModalOpen(true);
-                            }}
+                            onOpenTelegramPostLink={
+                              isAdmin
+                                ? (p) => {
+                                    setTelegramPostLinkPaperId(p.id);
+                                    setIsTelegramPostLinkModalOpen(true);
+                                  }
+                                : undefined
+                            }
                             telegramDbUrl={telegramDbUrl}
                           />
                         ))}
@@ -894,10 +1008,14 @@ export default function App() {
                     onOpenReader={handleOpenReader}
                     onOpenAdminInquiry={handleOpenAdminInquiryWithPaper}
                     onOpenTelegram={handleOpenTelegram}
-                    onOpenTelegramPostLink={(p) => {
-                      setTelegramPostLinkPaperId(p.id);
-                      setIsTelegramPostLinkModalOpen(true);
-                    }}
+                    onOpenTelegramPostLink={
+                      isAdmin
+                        ? (p) => {
+                            setTelegramPostLinkPaperId(p.id);
+                            setIsTelegramPostLinkModalOpen(true);
+                          }
+                        : undefined
+                    }
                     telegramDbUrl={telegramDbUrl}
                   />
                 ))}
@@ -908,10 +1026,10 @@ export default function App() {
 
         {/* TAB 2: FATWA & FIQH */}
         {currentTab === 'fatwa' && (
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
             <FatwaSection
               telegramDbUrl={telegramDbUrl}
-              onOpenTelegramModal={() => setIsTelegramModalOpen(true)}
+              onOpenTelegramModal={isAdmin ? () => setIsTelegramModalOpen(true) : undefined}
             />
           </div>
         )}
@@ -926,8 +1044,8 @@ export default function App() {
           />
         )}
 
-        {/* TAB 4: DEDICATED ADMIN CONTROL CENTER (PIN PROTECTED) */}
-        {currentTab === 'admin' && (
+        {/* TAB 4: DEDICATED ADMIN CONTROL CENTER (ONLY RENDERED FOR AUTHORIZED ADMINS) */}
+        {currentTab === 'admin' && isAdmin && authUser?.email && (
           <AdminPanel
             papers={papers}
             onSavePaper={handlePaperUploaded}
@@ -944,28 +1062,30 @@ export default function App() {
             onDeleteFatwa={handleDeleteFatwa}
             onOpenReader={handleOpenReader}
             onNavigateHome={() => setCurrentTab('papers')}
-            adminPin={adminPin}
-            onSaveAdminPin={handleSaveAdminPin}
+            authUserEmail={authUser.email}
+            onLogout={handleLogout}
+            adminUsers={adminUsers}
+            onAddAdminUser={handleAddAdminUser}
+            onRemoveAdminUser={handleRemoveAdminUser}
           />
         )}
       </main>
 
       {/* Floating Fast WhatsApp Helpline Button */}
-      <aside aria-label="Quick WhatsApp Contact" className="fixed bottom-6 right-6 z-30 flex flex-col items-end gap-3">
+      <aside aria-label="Quick WhatsApp Contact" className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-30 flex flex-col items-end gap-3">
         <button
           onClick={() => {
             setAdminInquiryTopic('');
             setIsAdminModalOpen(true);
           }}
-          className="flex items-center gap-2.5 px-4 py-3 bg-[#1B3F2B] hover:bg-[#153423] text-white rounded-full shadow-2xl border-2 border-[#2E7D4E] hover:scale-105 transition-all group"
+          className="flex items-center gap-2 p-3.5 sm:px-4 sm:py-3 bg-[#1B3F2B] hover:bg-[#153423] text-white rounded-full shadow-2xl border-2 border-[#2E7D4E] hover:scale-105 transition-all group"
           title="WhatsApp တိုက်ရိုက်ဆက်သွယ်ရန်"
         >
           <div className="relative">
             <MessageCircle className="w-5 h-5 text-[#4ADE80]" />
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#22C55E] animate-ping"></span>
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[#22C55E]"></span>
+            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#22C55E]"></span>
           </div>
-          <span className="font-burmese text-xs sm:text-sm font-semibold pr-1">
+          <span className="hidden sm:inline font-burmese text-xs sm:text-sm font-semibold pr-1">
             WhatsApp Admin
           </span>
         </button>
@@ -977,18 +1097,24 @@ export default function App() {
         onClose={handleCloseReader}
         onOpenAdminInquiry={handleOpenAdminInquiryWithPaper}
         onPaperDownloaded={handlePaperDownloaded}
-        onOpenTelegramPostLink={(p) => {
-          setTelegramPostLinkPaperId(p.id);
-          setIsTelegramPostLinkModalOpen(true);
-        }}
+        onOpenTelegramPostLink={
+          isAdmin
+            ? (p) => {
+                setTelegramPostLinkPaperId(p.id);
+                setIsTelegramPostLinkModalOpen(true);
+              }
+            : undefined
+        }
         telegramDbUrl={telegramDbUrl}
       />
 
-      <UploadPaperModal
-        isOpen={isUploadModalOpen}
-        onClose={() => setIsUploadModalOpen(false)}
-        onPaperUploaded={handlePaperUploaded}
-      />
+      {isAdmin && (
+        <UploadPaperModal
+          isOpen={isUploadModalOpen}
+          onClose={() => setIsUploadModalOpen(false)}
+          onPaperUploaded={handlePaperUploaded}
+        />
+      )}
 
       <AdminContactsModal
         isOpen={isAdminModalOpen}
@@ -1002,25 +1128,29 @@ export default function App() {
         onClose={() => setIsGitHubModalOpen(false)}
       />
 
-      <TelegramConfigModal
-        isOpen={isTelegramModalOpen}
-        onClose={() => setIsTelegramModalOpen(false)}
-        currentUrl={telegramDbUrl}
-        onSaveUrl={handleSaveTelegramDbUrl}
-      />
+      {isAdmin && (
+        <>
+          <TelegramConfigModal
+            isOpen={isTelegramModalOpen}
+            onClose={() => setIsTelegramModalOpen(false)}
+            currentUrl={telegramDbUrl}
+            onSaveUrl={handleSaveTelegramDbUrl}
+          />
 
-      <TelegramPostLinkModal
-        isOpen={isTelegramPostLinkModalOpen}
-        onClose={() => setIsTelegramPostLinkModalOpen(false)}
-        papers={papers}
-        initialPaperId={telegramPostLinkPaperId}
-        onAddNewPaperFromTelegram={handleAddNewPaperFromTelegram}
-        onSelectPaperToRead={(paper) => handleOpenReader(paper)}
-        onUpdatePaperTelegramLink={handleUpdatePaperTelegramLink}
-        telegramDbUrl={telegramDbUrl}
-      />
+          <TelegramPostLinkModal
+            isOpen={isTelegramPostLinkModalOpen}
+            onClose={() => setIsTelegramPostLinkModalOpen(false)}
+            papers={papers}
+            initialPaperId={telegramPostLinkPaperId}
+            onAddNewPaperFromTelegram={handleAddNewPaperFromTelegram}
+            onSelectPaperToRead={(paper) => handleOpenReader(paper)}
+            onUpdatePaperTelegramLink={handleUpdatePaperTelegramLink}
+            telegramDbUrl={telegramDbUrl}
+          />
+        </>
+      )}
 
-      {/* Footer with subtle Admin Panel link at the bottom */}
+      {/* Footer */}
       <Footer
         onSelectCategory={(cat) => {
           setSelectedCategory(cat);
@@ -1030,11 +1160,6 @@ export default function App() {
         openAdminModal={() => {
           setAdminInquiryTopic('');
           setIsAdminModalOpen(true);
-        }}
-        openUploadModal={() => setIsUploadModalOpen(true)}
-        openAdminPanel={() => {
-          setCurrentTab('admin');
-          window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
         openFatwaSection={() => {
           setCurrentTab('fatwa');
