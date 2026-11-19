@@ -23,6 +23,9 @@ import {
   Mail,
   Shield,
   UserCheck,
+  Sliders,
+  Radio,
+  BookMarked,
 } from 'lucide-react';
 import {
   Paper,
@@ -31,29 +34,38 @@ import {
   UserSubmittedFatwa,
   AdminContact,
   AdminUser,
+  SiteConfig,
+  FatwaItem,
 } from '../types';
 import { CATEGORIES_CONFIG, SAMPLE_TEMPLATE_PAPER } from '../data/initialData';
 import { OWNER_ADMIN_EMAIL } from '../lib/firebase';
+import { AdminSystemControlTab } from './AdminSystemControlTab';
+import { AdminPublishedFatwasManager } from './AdminPublishedFatwasManager';
 
 interface AdminPanelProps {
   papers: Paper[];
-  onSavePaper: (paper: Paper) => void;
-  onDeletePaper: (paperId: string) => void;
-  onUpdateTelegramLink: (paperId: string, link: string) => void;
+  onSavePaper: (paper: Paper) => Promise<void> | void;
+  onDeletePaper: (paperId: string) => Promise<void> | void;
+  onUpdateTelegramLink: (paperId: string, link: string) => Promise<void> | void;
   telegramDbUrl: string;
-  onSaveTelegramDbUrl: (newUrl: string) => void;
+  onSaveTelegramDbUrl: (newUrl: string) => Promise<void> | void;
   teamMembers: AdminContact[];
-  onSaveTeamMember: (member: AdminContact) => void;
-  onDeleteTeamMember: (memberId: string) => void;
+  onSaveTeamMember: (member: AdminContact) => Promise<void> | void;
+  onDeleteTeamMember: (memberId: string) => Promise<void> | void;
   userFatwas: UserSubmittedFatwa[];
-  onUpdateFatwaStatus: (id: string, status: 'pending' | 'answered') => void;
+  onUpdateFatwaStatus: (id: string, status: 'pending' | 'answered') => Promise<void> | void;
   onAnswerFatwa?: (
     id: string,
     answerText: string,
     kitabReference?: string,
     scholarName?: string
-  ) => void;
-  onDeleteFatwa: (id: string) => void;
+  ) => Promise<void> | void;
+  onDeleteFatwa: (id: string) => Promise<void> | void;
+  publishedFatwas: FatwaItem[];
+  onSavePublishedFatwa: (fatwa: FatwaItem) => Promise<void>;
+  onDeletePublishedFatwa: (fatwaId: string) => Promise<void>;
+  siteConfig: SiteConfig;
+  onSaveSiteConfig: (config: SiteConfig) => Promise<void>;
   onOpenReader: (paper: Paper) => void;
   onNavigateHome: () => void;
   authUserEmail: string;
@@ -77,6 +89,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onUpdateFatwaStatus,
   onAnswerFatwa,
   onDeleteFatwa,
+  publishedFatwas,
+  onSavePublishedFatwa,
+  onDeletePublishedFatwa,
+  siteConfig,
+  onSaveSiteConfig,
   onOpenReader,
   onNavigateHome,
   authUserEmail,
@@ -86,7 +103,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onRemoveAdminUser,
 }) => {
   // Active Admin Sub-tab
-  const [activeTab, setActiveTab] = useState<'books' | 'telegram' | 'fatwas' | 'team' | 'admins'>('books');
+  const [activeTab, setActiveTab] = useState<'system' | 'books' | 'telegram' | 'fatwas' | 'team' | 'admins'>('system');
+  const [fatwaSubTab, setFatwaSubTab] = useState<'inquiries' | 'published'>('inquiries');
 
   // Book Management States
   const [bookSearch, setBookSearch] = useState('');
@@ -202,7 +220,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const handleSaveBookForm = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formTitle.trim() || !formAuthor.trim() || !formAbstract.trim()) {
-      alert('ကျေးဇူးပြု၍ စာအုပ်အမည်၊ စာရေးသူနှင့် အကျဉ်းချုပ်ကို ဖြည့်သွင်းပေးပါ');
+      showAdminToast('ကျေးဇူးပြု၍ စာအုပ်အမည်၊ စာရေးသူနှင့် အကျဉ်းချုပ်ကို ဖြည့်သွင်းပေးပါ');
       return;
     }
 
@@ -312,7 +330,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const handleSaveTeamMemberForm = (e: React.FormEvent) => {
     e.preventDefault();
     if (!memberFormNameMy.trim() || !memberFormPhone.trim()) {
-      alert('ကျေးဇူးပြု၍ အမည်နှင့် ဖုန်းနံပါတ်ကို မဖြစ်မနေ ဖြည့်သွင်းပေးပါ');
+      showAdminToast('ကျေးဇူးပြု၍ အမည်နှင့် ဖုန်းနံပါတ်ကို မဖြစ်မနေ ဖြည့်သွင်းပေးပါ');
       return;
     }
 
@@ -418,7 +436,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const handleSaveAnswerSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!answeringFatwa || !answerTextInput.trim()) {
-      alert('ကျေးဇူးပြု၍ ဖသ်ဝါ ဓမ္မသတ် အဖြေတော်ကို ဖြည့်သွင်းပါ');
+      showAdminToast('ကျေးဇူးပြု၍ ဖသ်ဝါ ဓမ္မသတ် အဖြေတော်ကို ဖြည့်သွင်းပါ');
       return;
     }
 
@@ -559,8 +577,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         </div>
       </div>
 
-      {/* Main Navigation Tabs (Clean Responsive Grid) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 bg-white rounded-2xl p-2 border border-[#DECCB5] shadow-sm">
+      {/* Main Navigation Tabs (Clean Responsive 6-Tab Grid) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 bg-white rounded-2xl p-2 border border-[#DECCB5] shadow-sm">
+        <button
+          onClick={() => setActiveTab('system')}
+          className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all ${
+            activeTab === 'system'
+              ? 'bg-[#24130B] text-[#FAF7F2] shadow-md border border-[#8B5A2B]'
+              : 'text-[#5C3B23] hover:bg-[#FAF7F2]'
+          }`}
+        >
+          <Sliders className="w-4 h-4 shrink-0" />
+          <span className="truncate">စနစ်ထိန်းချုပ်မှု</span>
+        </button>
+
         <button
           onClick={() => setActiveTab('books')}
           className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all ${
@@ -570,7 +600,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           }`}
         >
           <BookOpen className="w-4 h-4 shrink-0" />
-          <span className="truncate">စာအုပ်စာတမ်း ({papers.length})</span>
+          <span className="truncate">စာအုပ် ({papers.length})</span>
         </button>
 
         <button
@@ -582,7 +612,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           }`}
         >
           <Send className="w-4 h-4 fill-current shrink-0" />
-          <span className="truncate">Telegram Channel</span>
+          <span className="truncate">Telegram</span>
         </button>
 
         <button
@@ -594,7 +624,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           }`}
         >
           <ShieldCheck className="w-4 h-4 shrink-0" />
-          <span className="truncate">ဖသ်ဝါ မေးခွန်း ({userFatwas.length})</span>
+          <span className="truncate">ဖသ်ဝါ ({userFatwas.length})</span>
         </button>
 
         <button
@@ -611,16 +641,28 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
         <button
           onClick={() => setActiveTab('admins')}
-          className={`col-span-2 sm:col-span-1 py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all ${
+          className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all ${
             activeTab === 'admins'
-              ? 'bg-[#24130B] text-[#FAF7F2] shadow-md border border-[#8B5A2B]'
+              ? 'bg-[#543014] text-[#FAF7F2] shadow-md border border-[#D9A86B]/50'
               : 'text-[#5C3B23] hover:bg-[#FAF7F2]'
           }`}
         >
           <UserCheck className="w-4 h-4 shrink-0" />
-          <span className="truncate">Admin ခန့်အပ်ခြင်း ({secondaryAdmins.length + 1})</span>
+          <span className="truncate">Admin ({secondaryAdmins.length + 1})</span>
         </button>
       </div>
+
+      {/* ---------------------------------------------------- */}
+      {/* TAB 0: WHOLE-SYSTEM REAL-TIME CONTROL                */}
+      {/* ---------------------------------------------------- */}
+      {activeTab === 'system' && (
+        <AdminSystemControlTab
+          siteConfig={siteConfig}
+          authUserEmail={authUserEmail}
+          onSaveSiteConfig={onSaveSiteConfig}
+          onToast={showAdminToast}
+        />
+      )}
 
       {/* ---------------------------------------------------- */}
       {/* TAB 1: BOOKS & PAPERS MANAGEMENT                      */}
@@ -880,17 +922,54 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       )}
 
       {/* ---------------------------------------------------- */}
-      {/* TAB 3: FATWA QUESTIONS MANAGEMENT                    */}
+      {/* TAB 3: FATWA QUESTIONS & PUBLISHED ARCHIVE           */}
       {/* ---------------------------------------------------- */}
       {activeTab === 'fatwas' && (
         <div className="space-y-5">
+          {/* Sub-Tab Switcher */}
+          <div className="bg-white rounded-2xl p-2 border border-[#E8DEC9] shadow-sm grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setFatwaSubTab('inquiries')}
+              className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                fatwaSubTab === 'inquiries'
+                  ? 'bg-[#15803D] text-white shadow-sm'
+                  : 'text-[#5C3B23] hover:bg-[#FAF7F2]'
+              }`}
+            >
+              <ShieldCheck className="w-4 h-4 shrink-0" />
+              <span className="truncate">ပြည်သူ့မေးခွန်းများ ({userFatwas.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFatwaSubTab('published')}
+              className={`py-2.5 px-3 rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                fatwaSubTab === 'published'
+                  ? 'bg-[#8B5A2B] text-white shadow-sm'
+                  : 'text-[#5C3B23] hover:bg-[#FAF7F2]'
+              }`}
+            >
+              <BookMarked className="w-4 h-4 shrink-0" />
+              <span className="truncate">ထုတ်ပြန်ပြီး ဖသ်ဝါစာကြည့်တိုက် ({publishedFatwas.length})</span>
+            </button>
+          </div>
+
+          {fatwaSubTab === 'published' ? (
+            <AdminPublishedFatwasManager
+              publishedFatwas={publishedFatwas}
+              onSavePublishedFatwa={onSavePublishedFatwa}
+              onDeletePublishedFatwa={onDeletePublishedFatwa}
+              onToast={showAdminToast}
+            />
+          ) : (
+          <>
           <div className="bg-white rounded-2xl p-5 border border-[#E8DEC9] shadow-sm flex items-center justify-between gap-4">
             <div>
               <h3 className="text-lg font-bold text-[#2C1810]">
                 ပြည်သူလူထု မေးမြန်းထားသော ဖသ်ဝါ ဓမ္မသတ် မေးခွန်းများ
               </h3>
               <p className="text-xs text-[#7A6353]">
-                မေးမြန်းသူများ၏ မေးခွန်းများကို ကြည့်ရှု၍ အဖြေပေးခြင်း၊ အခြေအနေ ပြောင်းလဲခြင်းနှင့် ဖျက်ပစ်ခြင်း
+                မေးမြန်းသူများ၏ မေးခွန်းများကို ကြည့်ရှု၍ အဖြေပေးခြင်း၊ တရားဝင်စာကြည့်တိုက်သို့ ထုတ်ပြန်ခြင်းနှင့် ဖျက်ပစ်ခြင်း (Real-Time Sync)
               </p>
             </div>
           </div>
@@ -904,7 +983,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 မေးမြန်းထားသော မေးခွန်းများ မရှိသေးပါ
               </h3>
               <p className="text-xs sm:text-sm text-[#7A6353]">
-                ပြည်သူများ ဖသ်ဝါကဏ္ဍမှတစ်ဆင့် မေးခွန်းများ ပေးပို့လာပါက ဤနေရာတွင် စနစ်တကျ ပြသပေးမည် ဖြစ်ပါသည်။
+                ပြည်သူများ ဖသ်ဝါကဏ္ဍမှတစ်ဆင့် မေးခွန်းများ ပေးပို့လာပါက ဤနေရာတွင် Real-Time ချက်ချင်း ပြသပေးမည် ဖြစ်ပါသည်။
               </p>
             </div>
           ) : (
@@ -1015,13 +1094,50 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       </div>
                     )}
 
-                    {/* WhatsApp Action Dispatch Button */}
-                    {item.contactNumber && (
-                      <div className="pt-1 flex flex-wrap items-center gap-2">
+                    {/* WhatsApp Action & Promote to Published Archive */}
+                    <div className="pt-1 flex flex-wrap items-center gap-2">
+                      {item.answerText && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const pubItem: FatwaItem = {
+                              id: `pub-from-${item.id}`,
+                              fatwaNumber: `IRA-FTW-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
+                              category: item.category,
+                              question: item.question,
+                              questionerName: item.isAnonymous ? 'အမည်မဖော်လိုသူ' : item.inquirerName,
+                              location: item.city || 'မြန်မာ',
+                              askedDate: item.submittedAt,
+                              answeredDate: item.answeredAt || new Date().toISOString().split('T')[0],
+                              answerSummary: item.answerText!.slice(0, 220),
+                              answerDetail: item.answerText!,
+                              kitabReference: item.kitabReference || 'ဟနဖီ ဖိကဟ်ကျမ်းဂန်များ',
+                              scholarName: item.scholarName || 'ဒါရုလ်အိဖ်တာအ် ဓမ္မသတ်အဖွဲ့',
+                              scholarTitle: 'အစ္စလာမ့် သုတေသန အကယ်ဒမီ',
+                              isVerified: true,
+                              viewsCount: 1,
+                              tags: [item.category, 'ဖသ်ဝါ'],
+                            };
+                            try {
+                              await onSavePublishedFatwa(pubItem);
+                              showAdminToast('ဖသ်ဝါစာကြည့်တိုက်သို့ ထုတ်ပြန်ပြီး အားလုံးထံ Real-Time Sync လုပ်ပြီးပါပြီ ✓');
+                            } catch (err) {
+                              console.error(err);
+                              showAdminToast('ထုတ်ပြန်ရာတွင် အမှားအယွင်း ဖြစ်ပေါ်နေပါသည်။');
+                            }
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#8B5A2B] hover:bg-[#73431B] text-white rounded-xl text-xs font-bold shadow-sm transition-all"
+                        >
+                          <Radio className="w-3.5 h-3.5" />
+                          <span>ဖသ်ဝါစာကြည့်တိုက်သို့ ထုတ်ပြန်မည်</span>
+                        </button>
+                      )}
+
+                      {item.contactNumber && (
                         <a
                           href={`https://wa.me/${item.contactNumber.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
                             item.answerText
-                              ? `*အစ္စလာမ် ဓမ္မသတ် ဖသ်ဝါ အဖြေလွှာ*\nဒါရုလ်အိဖ်တာအ် (Islamic Research Academy)\n\n` +
+                              ? `*အစ္စလာမ် ဓမ္မသတ် ဖသ်ဝါ အဖြေလွှာ*\nဒါရုလ်အိဖ်တာအ် (${siteConfig.siteNameEn})\n\n` +
                                 `👤 *မေးမြန်းသူ:* ${item.inquirerName}\n` +
                                 `❓ *မေးခွန်း:*\n${item.question}\n\n` +
                                 `📜 *ဓမ္မသတ် အဖြေတော်:*\n${item.answerText}\n\n` +
@@ -1029,7 +1145,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                                 `✍️ *ဖြေကြားသူ:* ${item.scholarName || 'ဒါရုလ်အိဖ်တာအ် ဓမ္မသတ်အဖွဲ့'}\n` +
                                 `ရက်စွဲ: ${item.answeredAt || item.submittedAt}\n\n` +
                                 `_အဟ်လေစွန္နသ်ဝလ်ဂျမာအသ် ဟနဖီလမ်းစဉ်အတိုင်း ဖြေကြားထားပါသည်_`
-                              : `မင်္ဂလာပါ ${item.inquirerName} ခင်ဗျာ။ အစ္စလာမ့် သုတေသန အကယ်ဒမီသို့ မေးမြန်းထားသော ဖသ်ဝါမေးခွန်းနှင့် ပတ်သက်၍ ဆက်သွယ်မေးမြန်းအပ်ပါသည်။`
+                              : `မင်္ဂလာပါ ${item.inquirerName} ခင်ဗျာ။ ${siteConfig.siteNameMy} သို့ မေးမြန်းထားသော ဖသ်ဝါမေးခွန်းနှင့် ပတ်သက်၍ ဆက်သွယ်မေးမြန်းအပ်ပါသည်။`
                           )}`}
                           target="_blank"
                           rel="noopener noreferrer"
@@ -1042,12 +1158,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                               : 'မေးမြန်းသူထံ WhatsApp ဖြင့် စကားပြောမည်'}
                           </span>
                         </a>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 );
               })}
             </div>
+          )}
+          </>
           )}
         </div>
       )}

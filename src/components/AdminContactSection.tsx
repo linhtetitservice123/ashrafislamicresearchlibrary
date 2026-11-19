@@ -61,7 +61,6 @@ export const AdminContactSection: React.FC<AdminContactSectionProps> = ({
   const handleSendCustomMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAdmin) {
-      alert('လက်ရှိတွင် တာဝန်ခံ Admin မသတ်မှတ်ရသေးပါ။');
       return;
     }
     const prefix = userName ? `အမည်: ${userName}\n` : '';

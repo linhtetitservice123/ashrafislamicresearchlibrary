@@ -11,13 +11,15 @@ import {
   orderBy,
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType, OWNER_ADMIN_EMAIL } from '../lib/firebase';
-import { Paper, PaperRequest, UserSubmittedFatwa, AdminContact, AdminUser } from '../types';
+import { Paper, PaperRequest, UserSubmittedFatwa, AdminContact, AdminUser, SiteConfig, FatwaItem } from '../types';
 
 export const PAPERS_COLLECTION = 'papers';
 export const REQUESTS_COLLECTION = 'requests';
 export const FATWA_INQUIRIES_COLLECTION = 'fatwa_inquiries';
+export const PUBLISHED_FATWAS_COLLECTION = 'published_fatwas';
 export const TEAM_MEMBERS_COLLECTION = 'team_members';
 export const SETTINGS_COLLECTION = 'settings';
+export const SITE_CONFIG_COLLECTION = 'site_config';
 export const ADMIN_USERS_COLLECTION = 'admin_users';
 
 function stripUndefined<T extends Record<string, any>>(obj: T): Record<string, any> {
@@ -520,4 +522,159 @@ export function subscribeToAdminUsers(
     return () => {};
   }
 }
+
+/**
+ * Save global site configuration to Firestore (real-time synced to all visitors)
+ */
+export async function saveSiteConfigToFirestore(config: SiteConfig): Promise<void> {
+  const path = `${SITE_CONFIG_COLLECTION}/main`;
+  const sanitizeStr = (val: string | undefined, max: number) => (val ?? '').trim().slice(0, max);
+
+  const payload: SiteConfig = {
+    siteNameEn: sanitizeStr(config.siteNameEn, 120) || 'ISLAMIC RESEARCH ACADEMY',
+    siteNameMy: sanitizeStr(config.siteNameMy, 150) || 'အစ္စလာမ့် သုတေသန အကယ်ဒမီ',
+    heroTitleMy: sanitizeStr(config.heroTitleMy, 200),
+    heroSubtitle: sanitizeStr(config.heroSubtitle, 1000),
+    searchPlaceholder: sanitizeStr(config.searchPlaceholder, 200),
+    announcementEnabled: Boolean(config.announcementEnabled),
+    announcementText: sanitizeStr(config.announcementText, 500),
+    announcementType:
+      config.announcementType === 'warning' || config.announcementType === 'success'
+        ? config.announcementType
+        : 'info',
+    maintenanceMode: Boolean(config.maintenanceMode),
+    maintenanceMessage: sanitizeStr(config.maintenanceMessage, 1000),
+    enableFatwaSection: Boolean(config.enableFatwaSection),
+    enableFatwaSubmission: Boolean(config.enableFatwaSubmission),
+    enableContactTab: Boolean(config.enableContactTab),
+    enableWhatsappFloat: Boolean(config.enableWhatsappFloat),
+    enableTelegramButtons: Boolean(config.enableTelegramButtons),
+    showDefaultSampleFatwas: Boolean(config.showDefaultSampleFatwas),
+    fatwaTitle: sanitizeStr(config.fatwaTitle, 200),
+    fatwaSubtitle: sanitizeStr(config.fatwaSubtitle, 1000),
+    fatwaNotice1: sanitizeStr(config.fatwaNotice1, 1000),
+    fatwaNotice2: sanitizeStr(config.fatwaNotice2, 1000),
+    fatwaWhatsappNumber: sanitizeStr(config.fatwaWhatsappNumber, 64),
+    footerDescription: sanitizeStr(config.footerDescription, 1000),
+    contactEmail: sanitizeStr(config.contactEmail, 200),
+    footerCopyright: sanitizeStr(config.footerCopyright, 200),
+    footerTagline: sanitizeStr(config.footerTagline, 200),
+    updatedAt: new Date().toISOString(),
+    updatedBy: sanitizeStr(config.updatedBy, 254),
+  };
+
+  try {
+    await setDoc(doc(db, SITE_CONFIG_COLLECTION, 'main'), payload);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+/**
+ * Subscribe to global site configuration in Firestore (real-time sync across all clients)
+ */
+export function subscribeToSiteConfig(
+  onUpdate: (config: Partial<SiteConfig> | null) => void,
+  onError?: (err: Error) => void
+) {
+  const path = `${SITE_CONFIG_COLLECTION}/main`;
+  try {
+    const docRef = doc(db, SITE_CONFIG_COLLECTION, 'main');
+    return onSnapshot(
+      docRef,
+      (docSnap) => {
+        if (docSnap.exists()) {
+          onUpdate(docSnap.data() as Partial<SiteConfig>);
+        } else {
+          onUpdate(null);
+        }
+      },
+      (error) => {
+        console.error('Site config snapshot error:', error);
+        if (onError) onError(error);
+        handleFirestoreError(error, OperationType.GET, path);
+      }
+    );
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, path);
+    return () => {};
+  }
+}
+
+/**
+ * Save or update an official published Fatwa in Firestore
+ */
+export async function savePublishedFatwaToFirestore(fatwa: FatwaItem): Promise<void> {
+  const path = `${PUBLISHED_FATWAS_COLLECTION}/${fatwa.id}`;
+  const sanitizeStr = (val: string | undefined, max: number) => (val ?? '').trim().slice(0, max);
+
+  const payload = stripUndefined({
+    id: sanitizeStr(fatwa.id, 128),
+    fatwaNumber: sanitizeStr(fatwa.fatwaNumber, 64),
+    category: fatwa.category,
+    question: sanitizeStr(fatwa.question, 4000),
+    questionerName: sanitizeStr(fatwa.questionerName, 150),
+    location: sanitizeStr(fatwa.location, 100),
+    askedDate: sanitizeStr(fatwa.askedDate, 64),
+    answeredDate: sanitizeStr(fatwa.answeredDate, 64),
+    answerSummary: sanitizeStr(fatwa.answerSummary, 2000),
+    answerDetail: sanitizeStr(fatwa.answerDetail, 15000),
+    arabicReference: sanitizeStr(fatwa.arabicReference, 2000),
+    kitabReference: sanitizeStr(fatwa.kitabReference, 500),
+    scholarName: sanitizeStr(fatwa.scholarName, 200),
+    scholarTitle: sanitizeStr(fatwa.scholarTitle, 200),
+    isVerified: Boolean(fatwa.isVerified),
+    viewsCount: Number(fatwa.viewsCount) || 0,
+    tags: Array.isArray(fatwa.tags) ? fatwa.tags.slice(0, 20).map((t) => String(t).trim()).filter(Boolean) : [],
+  });
+
+  try {
+    await setDoc(doc(db, PUBLISHED_FATWAS_COLLECTION, fatwa.id), payload);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+/**
+ * Delete an official published Fatwa from Firestore
+ */
+export async function deletePublishedFatwaFromFirestore(fatwaId: string): Promise<void> {
+  const path = `${PUBLISHED_FATWAS_COLLECTION}/${fatwaId}`;
+  try {
+    await deleteDoc(doc(db, PUBLISHED_FATWAS_COLLECTION, fatwaId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
+/**
+ * Subscribe to official published Fatwas in Firestore (real-time sync)
+ */
+export function subscribeToPublishedFatwas(
+  onUpdate: (fatwas: FatwaItem[]) => void,
+  onError?: (err: Error) => void
+) {
+  try {
+    const colRef = collection(db, PUBLISHED_FATWAS_COLLECTION);
+    return onSnapshot(
+      colRef,
+      (snapshot) => {
+        const fetched: FatwaItem[] = [];
+        snapshot.forEach((d) => {
+          fetched.push(d.data() as FatwaItem);
+        });
+        onUpdate(fetched);
+      },
+      (error) => {
+        console.error('Published fatwas snapshot error:', error);
+        if (onError) onError(error);
+        handleFirestoreError(error, OperationType.GET, PUBLISHED_FATWAS_COLLECTION);
+      }
+    );
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, PUBLISHED_FATWAS_COLLECTION);
+    return () => {};
+  }
+}
+
 

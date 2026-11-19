@@ -118,3 +118,34 @@ export interface AdminUser {
   addedAt: string;
   addedBy: string;
 }
+
+export interface SiteConfig {
+  siteNameEn: string;
+  siteNameMy: string;
+  heroTitleMy: string;
+  heroSubtitle: string;
+  searchPlaceholder: string;
+  announcementEnabled: boolean;
+  announcementText: string;
+  announcementType: 'info' | 'warning' | 'success';
+  maintenanceMode: boolean;
+  maintenanceMessage: string;
+  enableFatwaSection: boolean;
+  enableFatwaSubmission: boolean;
+  enableContactTab: boolean;
+  enableWhatsappFloat: boolean;
+  enableTelegramButtons: boolean;
+  showDefaultSampleFatwas: boolean;
+  fatwaTitle: string;
+  fatwaSubtitle: string;
+  fatwaNotice1: string;
+  fatwaNotice2: string;
+  fatwaWhatsappNumber: string;
+  footerDescription: string;
+  contactEmail: string;
+  footerCopyright: string;
+  footerTagline: string;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+

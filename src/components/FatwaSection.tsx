@@ -1,8 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import {
-  saveFatwaInquiryToFirestore,
-  subscribeToFatwaInquiries,
-} from '../services/firestoreService';
+import React, { useState, useMemo } from 'react';
 import {
   Compass,
   Moon,
@@ -17,12 +13,9 @@ import {
   ShieldCheck,
   Send,
   MessageCircle,
-  PhoneCall,
   Copy,
   Check,
-  Share2,
   BookOpen,
-  Filter,
   Eye,
   PlusCircle,
   FileQuestion,
@@ -30,15 +23,11 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
-  User,
-  MapPin,
-  ExternalLink,
   BookMarked,
 } from 'lucide-react';
-import { FatwaCategory, FatwaItem, UserSubmittedFatwa } from '../types';
+import { FatwaCategory, FatwaItem, UserSubmittedFatwa, SiteConfig, AdminContact } from '../types';
 import {
   FATWA_CATEGORIES_CONFIG,
-  MANDATORY_FATWA_NOTICES,
   INITIAL_ANSWERED_FATWAS,
 } from '../data/fatwaData';
 import { FatwaDetailModal } from './FatwaDetailModal';
@@ -46,22 +35,43 @@ import { FatwaDetailModal } from './FatwaDetailModal';
 interface FatwaSectionProps {
   telegramDbUrl: string;
   onOpenTelegramModal?: () => void;
+  siteConfig: SiteConfig;
+  userFatwas: UserSubmittedFatwa[];
+  publishedFatwas: FatwaItem[];
+  teamMembers: AdminContact[];
+  onSubmitFatwaInquiry: (inquiry: UserSubmittedFatwa) => Promise<void>;
 }
 
 export const FatwaSection: React.FC<FatwaSectionProps> = ({
   telegramDbUrl,
-  onOpenTelegramModal,
+  siteConfig,
+  userFatwas,
+  publishedFatwas,
+  teamMembers,
+  onSubmitFatwaInquiry,
 }) => {
-  // State for answered fatwas
-  const [fatwas] = useState<FatwaItem[]>(INITIAL_ANSWERED_FATWAS);
+  // Combine Admin-published Firestore Fatwas + optional built-in sample Fatwas
+  const fatwas = useMemo(() => {
+    const combined = [...publishedFatwas];
+    if (siteConfig.showDefaultSampleFatwas) {
+      const publishedIds = new Set(publishedFatwas.map((f) => f.id));
+      INITIAL_ANSWERED_FATWAS.forEach((sample) => {
+        if (!publishedIds.has(sample.id)) {
+          combined.push(sample);
+        }
+      });
+    }
+    return combined;
+  }, [publishedFatwas, siteConfig.showDefaultSampleFatwas]);
+
   const [selectedCategory, setSelectedCategory] = useState<FatwaCategory | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeModalFatwa, setActiveModalFatwa] = useState<FatwaItem | null>(null);
+  const [activeModalFatwaId, setActiveModalFatwaId] = useState<string | null>(null);
   const [expandedFatwaId, setExpandedFatwaId] = useState<string | null>(null);
   const [copiedFatwaId, setCopiedFatwaId] = useState<string | null>(null);
   const [expandedInquiryId, setExpandedInquiryId] = useState<string | null>(null);
 
-  // View mode: 'shelves' (အကန့်လေးတွေနဲ့ ပြပေးခြင်း) vs 'all'
+  // View mode: 'shelves' (အကန့်လေးတွေနဲ့ ပြပေးခြင်း) vs 'single_category'
   const [viewMode, setViewMode] = useState<'shelves' | 'single_category'>('shelves');
 
   // State for Ask Fatwa Form
@@ -73,34 +83,22 @@ export const FatwaSection: React.FC<FatwaSectionProps> = ({
   const [formContactType, setFormContactType] = useState<'whatsapp' | 'telegram' | 'phone'>('whatsapp');
   const [formCity, setFormCity] = useState('');
   const [formSubmitted, setFormSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // User submitted questions list in localStorage
-  const [submittedList, setSubmittedList] = useState<UserSubmittedFatwa[]>(() => {
-    try {
-      const saved = localStorage.getItem('ira_user_fatwas');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const activeModalFatwa = useMemo(
+    () => fatwas.find((f) => f.id === activeModalFatwaId) || null,
+    [fatwas, activeModalFatwaId]
+  );
 
-  // Real-time synchronization of fatwa inquiries from Firestore
-  useEffect(() => {
-    const unsubscribe = subscribeToFatwaInquiries((remoteInquiries) => {
-      if (remoteInquiries && remoteInquiries.length > 0) {
-        setSubmittedList((prev) => {
-          const map = new Map<string, UserSubmittedFatwa>();
-          (Array.isArray(prev) ? prev : []).forEach((item) => map.set(item.id, item));
-          remoteInquiries.forEach((item) => map.set(item.id, item));
-          return Array.from(map.values()).sort(
-            (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
-          );
-        });
-      }
-    });
+  // Determine real-time WhatsApp number from SiteConfig or primary team member
+  const rawWhatsapp =
+    siteConfig.fatwaWhatsappNumber?.trim() ||
+    teamMembers[0]?.whatsappNumber ||
+    teamMembers[0]?.phoneNumber ||
+    '';
+  const cleanWhatsapp = rawWhatsapp.replace(/[^0-9]/g, '');
 
-    return () => unsubscribe();
-  }, []);
+  const submittedList = userFatwas;
 
   const getCategoryIcon = (iconName: string) => {
     switch (iconName) {
@@ -155,9 +153,9 @@ export const FatwaSection: React.FC<FatwaSectionProps> = ({
   });
 
   // Handle Form Submission
-  const handleAskFatwaSubmit = (e: React.FormEvent) => {
+  const handleAskFatwaSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formQuestion.trim()) return;
+    if (!formQuestion.trim() || isSubmitting) return;
 
     const newQuestion: UserSubmittedFatwa = {
       id: `usr-ftw-${Date.now()}`,
@@ -172,24 +170,20 @@ export const FatwaSection: React.FC<FatwaSectionProps> = ({
       status: 'pending',
     };
 
-    const updated = [newQuestion, ...submittedList];
-    setSubmittedList(updated);
+    setIsSubmitting(true);
     try {
-      localStorage.setItem('ira_user_fatwas', JSON.stringify(updated));
+      await onSubmitFatwaInquiry(newQuestion);
+      setFormSubmitted(true);
     } catch (err) {
-      console.error(err);
+      console.error('Fatwa submit error:', err);
+    } finally {
+      setIsSubmitting(false);
     }
-
-    // Persist to Firestore
-    saveFatwaInquiryToFirestore(newQuestion).catch((err) => {
-      console.warn('Saved locally, Firestore sync error:', err);
-    });
-
-    setFormSubmitted(true);
   };
 
   // Direct WhatsApp dispatch for Fatwa Question
   const handleSendViaWhatsApp = () => {
+    if (!cleanWhatsapp) return;
     const categoryName = FATWA_CATEGORIES_CONFIG[formCategory]?.nameMy || formCategory;
     const nameStr = isAnonymous ? 'အမည်မဖော်လိုသူ' : (formName || 'မေးမြန်းသူ');
     const msg = encodeURIComponent(
@@ -198,9 +192,9 @@ export const FatwaSection: React.FC<FatwaSectionProps> = ({
       `👤 *မေးမြန်းသူ:* ${nameStr} (${formCity || 'မြန်မာ'})\n` +
       `📞 *ဆက်သွယ်ရန်:* ${formContact || 'မဖော်ပြပါ'}\n\n` +
       `❓ *မေးခွန်း:*\n${formQuestion}\n\n` +
-      `_Islamic Research Academy ဒါရုလ်အိဖ်တာအ် ဓမ္မသတ်အဖွဲ့သို့ မေးမြန်းအပ်ပါသည်။_`
+      `_${siteConfig.siteNameEn} ဒါရုလ်အိဖ်တာအ် ဓမ္မသတ်အဖွဲ့သို့ မေးမြန်းအပ်ပါသည်။_`
     );
-    window.open(`https://wa.me/959777112233?text=${msg}`, '_blank');
+    window.open(`https://wa.me/${cleanWhatsapp}?text=${msg}`, '_blank', 'noopener,noreferrer');
   };
 
   const handleCopyAnswer = (fatwa: FatwaItem) => {
@@ -227,56 +221,55 @@ export const FatwaSection: React.FC<FatwaSectionProps> = ({
           </div>
 
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-[#FFF9F2] tracking-wide mb-3 leading-snug">
-            အစ္စလာမ့် ဓမ္မသတ် ဖသ်ဝါဌာန
+            {siteConfig.fatwaTitle}
           </h1>
 
           <p className="text-sm sm:text-base text-[#DEC8AF] leading-relaxed mb-6 max-w-3xl">
-            အဟ်လေစွန္နသ်ဝလ်ဂျမာအသ် ဟနဖီဖိကဟ် ဓမ္မသတ်တော်များနှင့်အညီ ဖြေကြားထားပြီးသော ဖသ်ဝါများကို ကဏ္ဍအလိုက် အကန့်များဖြင့် လေ့လာဖတ်ရှုနိုင်သလို မိမိသိလိုသော သာသနာ့ဓမ္မသတ်များကိုလည်း တိုက်ရိုက်မေးမြန်းနိုင်ပါသည်။
+            {siteConfig.fatwaSubtitle}
           </p>
 
-          {/* TWO MANDATORY NOTICES AS REQUESTED BY USER */}
+          {/* TWO MANDATORY NOTICES */}
           <div className="space-y-3.5 pt-2">
             {/* Notice 1: Myanmar Marriage & Inheritance Special Notice */}
-            <div className="bg-[#B91C1C]/15 border-2 border-[#EF4444] rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 shadow-md">
-              <AlertTriangle className="w-6 h-6 text-[#FCA5A5] shrink-0 mt-0.5 animate-pulse" />
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded bg-[#EF4444] text-white text-[11px] font-bold">
-                    အထူးသတိပေးချက်
-                  </span>
-                  <span className="text-xs text-[#FCA5A5] font-semibold">
-                    (မိသားစု၊ လင်မယားနှင့် အမွေဆိုင်ရာ)
-                  </span>
+            {siteConfig.fatwaNotice1 && (
+              <div className="bg-[#B91C1C]/15 border-2 border-[#EF4444] rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 shadow-md">
+                <AlertTriangle className="w-6 h-6 text-[#FCA5A5] shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="px-2 py-0.5 rounded bg-[#EF4444] text-white text-[11px] font-bold">
+                      အထူးသတိပေးချက်
+                    </span>
+                    <span className="text-xs text-[#FCA5A5] font-semibold">
+                      (မိသားစု၊ လင်မယားနှင့် အမွေဆိုင်ရာ)
+                    </span>
+                  </div>
+                  <p className="text-sm sm:text-base font-bold text-[#FEE2E2] leading-relaxed">
+                    {siteConfig.fatwaNotice1}
+                  </p>
                 </div>
-                <p className="text-sm sm:text-base font-bold text-[#FEE2E2] leading-relaxed">
-                  {MANDATORY_FATWA_NOTICES.marriageInheritanceNotice}
-                </p>
-                <p className="text-xs text-[#FCA5A5]/90 leading-relaxed pt-1">
-                  * ရှင်းလင်းချက် - လင်မယားကွာရှင်းပြတ်စဲမှုနှင့် အမွေခွဲဝေမှုများသည် နှစ်ဖက်သက်သေထွက်ဆိုချက်နှင့် စာရွက်စာတမ်း အထောက်အထားများအား လူကိုယ်တိုင်တိုက်ရိုက်စစ်ဆေးရန် လိုအပ်သဖြင့် အွန်လိုင်းမှ ဖြေကြားခွင့်မပြုဘဲ ပြင်ပတရားဝင် ဓမ္မသတ်ရုံးများသို့သာ လူကိုယ်တိုင်ကြွရောက် မေးမြန်းဆုံးဖြတ်ချက် ခံယူရမည်ဖြစ်ပါသည်။
-                </p>
               </div>
-            </div>
+            )}
 
             {/* Notice 2: Hanafi Mazhab Warning Notice */}
-            <div className="bg-[#D97706]/15 border-2 border-[#F59E0B] rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 shadow-md">
-              <Info className="w-6 h-6 text-[#FDE68A] shrink-0 mt-0.5" />
-              <div>
-                <span className="px-2 py-0.5 rounded bg-[#D97706] text-white text-[11px] font-bold inline-block mb-1">
-                  မဇ်ဟဗ် လမ်းစဉ်သတ်မှတ်ချက်
-                </span>
-                <p className="text-sm sm:text-base font-bold text-[#FEF3C7] leading-relaxed">
-                  {MANDATORY_FATWA_NOTICES.hanafiWarningNotice}
-                </p>
-                <p className="text-xs text-[#FDE68A]/90 pt-1 leading-relaxed">
-                  ဤဌာနမှ ဖြေကြားထားသော ဓမ္မသတ်များနှင့် မေးမြန်းချက်အားလုံးသည် အဟ်လေစွန္နသ်ဝလ်ဂျမာအသ် အေမာမ်အအ်ဇမ် အဘူဟနီဖာဟ် (ရဟ်မသုလ္လာဟိအလိုင်းဟ်) ၏ ဟနဖီဖိကဟ်ကျမ်းဂန်များ (ရဒ်ဒုလ်မုဟ်တာရ်၊ ဖတာဝါဟိန္ဒီယာ၊ အလ်ဟိဒါယာဟ်၊ နူးရုလ်အီဒွာဟ်) အပေါ် အခြေခံထားပါသည်။
-                </p>
+            {siteConfig.fatwaNotice2 && (
+              <div className="bg-[#D97706]/15 border-2 border-[#F59E0B] rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 shadow-md">
+                <Info className="w-6 h-6 text-[#FDE68A] shrink-0 mt-0.5" />
+                <div>
+                  <span className="px-2 py-0.5 rounded bg-[#D97706] text-white text-[11px] font-bold inline-block mb-1">
+                    မဇ်ဟဗ် လမ်းစဉ်သတ်မှတ်ချက်
+                  </span>
+                  <p className="text-sm sm:text-base font-bold text-[#FEF3C7] leading-relaxed">
+                    {siteConfig.fatwaNotice2}
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* 2. ASK FATWA SECTION ("ဖသ်ဝါနေရာကိုဝင်တာနဲ့မေးမဲ့နေရာရှိရမယ်") */}
+      {/* 2. ASK FATWA SECTION */}
+      {siteConfig.enableFatwaSubmission ? (
       <section
         id="ask-fatwa-section"
         className="bg-white rounded-3xl p-6 sm:p-8 border-2 border-[#D9C4AC] shadow-lg relative overflow-hidden"
@@ -286,7 +279,7 @@ export const FatwaSection: React.FC<FatwaSectionProps> = ({
           <div className="border-b border-[#EADFCF] pb-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#8B5A2B] to-[#543014] text-white flex items-center justify-center shadow-md">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#8B5A2B] to-[#543014] text-white flex items-center justify-center shadow-md shrink-0">
                   <FileQuestion className="w-6 h-6" />
                 </div>
                 <div>
@@ -300,16 +293,18 @@ export const FatwaSection: React.FC<FatwaSectionProps> = ({
               </div>
 
               {/* Direct WhatsApp Call/Chat with Mufti Button */}
-              <a
-                href="https://wa.me/959777112233"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-3.5 py-2 bg-[#1B3F2B] hover:bg-[#153423] text-white rounded-xl text-xs font-semibold flex items-center gap-2 border border-[#2E7D4E] shadow-sm transition-all"
-                title="မုဖ်သီထံ WhatsApp ဖြင့် တိုက်ရိုက်မေးမည်"
-              >
-                <MessageCircle className="w-4 h-4 text-[#4ADE80]" />
-                <span>WhatsApp ဓမ္မသတ်ရုံး တိုက်ရိုက်မေးမည်</span>
-              </a>
+              {cleanWhatsapp && siteConfig.enableWhatsappFloat && (
+                <a
+                  href={`https://wa.me/${cleanWhatsapp}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3.5 py-2 bg-[#1B3F2B] hover:bg-[#153423] text-white rounded-xl text-xs font-semibold flex items-center gap-2 border border-[#2E7D4E] shadow-sm transition-all"
+                  title="မုဖ်သီထံ WhatsApp ဖြင့် တိုက်ရိုက်မေးမည်"
+                >
+                  <MessageCircle className="w-4 h-4 text-[#4ADE80]" />
+                  <span>WhatsApp ဓမ္မသတ်ရုံး တိုက်ရိုက်မေးမည်</span>
+                </a>
+              )}
             </div>
           </div>
 
@@ -329,13 +324,15 @@ export const FatwaSection: React.FC<FatwaSectionProps> = ({
               </div>
 
               <div className="flex flex-wrap items-center gap-3 pt-2">
-                <button
-                  onClick={handleSendViaWhatsApp}
-                  className="px-4 py-2 bg-[#25D366] hover:bg-[#20BD5A] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow transition-all"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  <span>မုဖ်သီ WhatsApp သို့ ချက်ချင်းပေးပို့မည်</span>
-                </button>
+                {cleanWhatsapp && siteConfig.enableWhatsappFloat && (
+                  <button
+                    onClick={handleSendViaWhatsApp}
+                    className="px-4 py-2 bg-[#25D366] hover:bg-[#20BD5A] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow transition-all"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>မုဖ်သီ WhatsApp သို့ ချက်ချင်းပေးပို့မည်</span>
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     setFormSubmitted(false);
@@ -506,30 +503,37 @@ export const FatwaSection: React.FC<FatwaSectionProps> = ({
               </div>
 
               <div className="flex flex-wrap items-center gap-2.5">
-                <button
-                  type="button"
-                  onClick={handleSendViaWhatsApp}
-                  disabled={!formQuestion.trim()}
-                  className="px-4 py-2.5 bg-[#1B3F2B] hover:bg-[#153423] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 border border-[#2E7D4E] transition-all disabled:opacity-50"
-                  title="မုဖ်သီထံ WhatsApp ဖြင့် တိုက်ရိုက်မေးမည်"
-                >
-                  <MessageCircle className="w-4 h-4 text-[#4ADE80]" />
-                  <span>WhatsApp ဖြင့် မေးမည်</span>
-                </button>
+                {cleanWhatsapp && siteConfig.enableWhatsappFloat && (
+                  <button
+                    type="button"
+                    onClick={handleSendViaWhatsApp}
+                    disabled={!formQuestion.trim()}
+                    className="px-4 py-2.5 bg-[#1B3F2B] hover:bg-[#153423] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 border border-[#2E7D4E] transition-all disabled:opacity-50"
+                    title="မုဖ်သီထံ WhatsApp ဖြင့် တိုက်ရိုက်မေးမည်"
+                  >
+                    <MessageCircle className="w-4 h-4 text-[#4ADE80]" />
+                    <span>WhatsApp ဖြင့် မေးမည်</span>
+                  </button>
+                )}
 
                 <button
                   type="submit"
-                  disabled={!formQuestion.trim()}
+                  disabled={!formQuestion.trim() || isSubmitting}
                   className="px-6 py-2.5 bg-[#8B5A2B] hover:bg-[#6E421B] text-white rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-md transition-all disabled:opacity-50"
                 >
                   <PlusCircle className="w-4 h-4" />
-                  <span>ဖသ်ဝါမေးခွန်း တင်သွင်းမည်</span>
+                  <span>{isSubmitting ? 'ပေးပို့နေသည်...' : 'ဖသ်ဝါမေးခွန်း တင်သွင်းမည်'}</span>
                 </button>
               </div>
             </div>
           </form>
         </div>
       </section>
+      ) : (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-center text-xs sm:text-sm text-amber-900">
+          လက်ရှိတွင် ဖသ်ဝါမေးခွန်းအသစ် တင်သွင်းခြင်းကို Admin မှ ယာယီပိတ်ထားပါသည်။ ဖြေကြားထားပြီးသော ဖသ်ဝါများကို ဆက်လက်ဖတ်ရှုနိုင်ပါသည်။
+        </div>
+      )}
 
       {/* 3. ANSWERED FATWAS DISPLAY ("ဖြေထားပြီးသားတွေကိုလဲအကန့်လေးတွေနဲ့ပြပေးရမယ်") */}
       <section className="space-y-6">
@@ -565,16 +569,18 @@ export const FatwaSection: React.FC<FatwaSectionProps> = ({
             >
               အကန့်အလိုက် ကြည့်မည် (Shelves)
             </button>
-            <a
-              href={telegramDbUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-3.5 py-1.5 bg-[#229ED9] hover:bg-[#1B8BBF] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
-              title="Telegram Database တွင် ဖသ်ဝါများ ရှာဖွေရန်"
-            >
-              <Send className="w-3.5 h-3.5 fill-white" />
-              <span>Telegram ဓမ္မသတ် Database</span>
-            </a>
+            {siteConfig.enableTelegramButtons && (
+              <a
+                href={telegramDbUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3.5 py-1.5 bg-[#229ED9] hover:bg-[#1B8BBF] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm"
+                title="Telegram Database တွင် ဖသ်ဝါများ ရှာဖွေရန်"
+              >
+                <Send className="w-3.5 h-3.5 fill-white" />
+                <span>Telegram ဓမ္မသတ် Database</span>
+              </a>
+            )}
           </div>
         </div>
 
@@ -725,9 +731,10 @@ export const FatwaSection: React.FC<FatwaSectionProps> = ({
                           onToggleExpand={() =>
                             setExpandedFatwaId(expandedFatwaId === item.id ? null : item.id)
                           }
-                          onOpenModal={() => setActiveModalFatwa(item)}
+                          onOpenModal={() => setActiveModalFatwaId(item.id)}
                           onCopy={() => handleCopyAnswer(item)}
                           telegramDbUrl={telegramDbUrl}
+                          showTelegram={siteConfig.enableTelegramButtons}
                         />
                       ))}
                     </div>
@@ -748,9 +755,10 @@ export const FatwaSection: React.FC<FatwaSectionProps> = ({
                 onToggleExpand={() =>
                   setExpandedFatwaId(expandedFatwaId === item.id ? null : item.id)
                 }
-                onOpenModal={() => setActiveModalFatwa(item)}
+                onOpenModal={() => setActiveModalFatwaId(item.id)}
                 onCopy={() => handleCopyAnswer(item)}
                 telegramDbUrl={telegramDbUrl}
+                showTelegram={siteConfig.enableTelegramButtons}
               />
             ))}
           </div>
@@ -825,17 +833,19 @@ export const FatwaSection: React.FC<FatwaSectionProps> = ({
                         </button>
                       )}
 
-                      <a
-                        href={`https://wa.me/959777112233?text=${encodeURIComponent(
-                          `မေးမြန်းထားသော ဖသ်ဝါမေးခွန်း အခြေအနေစုံစမ်းရန်:\n${item.question}`
-                        )}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-3 py-1.5 bg-white text-[#1B3F2B] hover:bg-emerald-50 rounded-xl font-semibold border border-emerald-300 flex items-center gap-1.5 transition-colors"
-                      >
-                        <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>မေးမြန်းမည်</span>
-                      </a>
+                      {cleanWhatsapp && siteConfig.enableWhatsappFloat && (
+                        <a
+                          href={`https://wa.me/${cleanWhatsapp}?text=${encodeURIComponent(
+                            `မေးမြန်းထားသော ဖသ်ဝါမေးခွန်း အခြေအနေစုံစမ်းရန်:\n${item.question}`
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1.5 bg-white text-[#1B3F2B] hover:bg-emerald-50 rounded-xl font-semibold border border-emerald-300 flex items-center gap-1.5 transition-colors"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>မေးမြန်းမည်</span>
+                        </a>
+                      )}
                     </div>
                   </div>
 
@@ -873,7 +883,7 @@ export const FatwaSection: React.FC<FatwaSectionProps> = ({
       <FatwaDetailModal
         fatwa={activeModalFatwa}
         isOpen={!!activeModalFatwa}
-        onClose={() => setActiveModalFatwa(null)}
+        onClose={() => setActiveModalFatwaId(null)}
         telegramDbUrl={telegramDbUrl}
       />
     </div>
@@ -889,6 +899,7 @@ interface FatwaCardProps {
   onOpenModal: () => void;
   onCopy: () => void;
   telegramDbUrl: string;
+  showTelegram: boolean;
 }
 
 const FatwaCard: React.FC<FatwaCardProps> = ({
@@ -899,6 +910,7 @@ const FatwaCard: React.FC<FatwaCardProps> = ({
   onOpenModal,
   onCopy,
   telegramDbUrl,
+  showTelegram,
 }) => {
   const categoryConfig = FATWA_CATEGORIES_CONFIG[fatwa.category];
 
@@ -989,15 +1001,17 @@ const FatwaCard: React.FC<FatwaCardProps> = ({
             {isCopied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
           </button>
 
-          <a
-            href={telegramDbUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="p-1.5 text-[#229ED9] hover:bg-[#229ED9]/10 rounded-lg transition-colors"
-            title="Telegram Database တွင် ကြည့်မည်"
-          >
-            <Send className="w-4 h-4 fill-current" />
-          </a>
+          {showTelegram && (
+            <a
+              href={telegramDbUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-1.5 text-[#229ED9] hover:bg-[#229ED9]/10 rounded-lg transition-colors"
+              title="Telegram Database တွင် ကြည့်မည်"
+            >
+              <Send className="w-4 h-4 fill-current" />
+            </a>
+          )}
         </div>
       </div>
     </div>

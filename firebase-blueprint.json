@@ -70,6 +70,31 @@
       },
       "required": ["id", "category", "question", "inquirerName", "contactNumber", "contactType", "isAnonymous", "submittedAt", "status"]
     },
+    "PublishedFatwa": {
+      "title": "Published Official Fatwa",
+      "description": "Official Fatwa entry managed by Admin and synced in real-time to all visitors",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "fatwaNumber": { "type": "string", "maxLength": 64 },
+        "category": { "type": "string", "enum": ["namaz", "roza", "hajj", "zakat", "trade_business", "amal"] },
+        "question": { "type": "string", "maxLength": 4000 },
+        "questionerName": { "type": "string", "maxLength": 150 },
+        "location": { "type": "string", "maxLength": 100 },
+        "askedDate": { "type": "string", "maxLength": 64 },
+        "answeredDate": { "type": "string", "maxLength": 64 },
+        "answerSummary": { "type": "string", "maxLength": 2000 },
+        "answerDetail": { "type": "string", "maxLength": 15000 },
+        "arabicReference": { "type": "string", "maxLength": 2000 },
+        "kitabReference": { "type": "string", "maxLength": 500 },
+        "scholarName": { "type": "string", "maxLength": 200 },
+        "scholarTitle": { "type": "string", "maxLength": 200 },
+        "isVerified": { "type": "boolean" },
+        "viewsCount": { "type": "number" },
+        "tags": { "type": "array" }
+      },
+      "required": ["id", "fatwaNumber", "category", "question", "answerSummary", "answerDetail", "kitabReference", "scholarName"]
+    },
     "AdminContact": {
       "title": "Organization Team Member",
       "description": "Official team member or scholar contact entry",
@@ -102,6 +127,41 @@
       },
       "required": ["key", "value"]
     },
+    "SiteConfig": {
+      "title": "Global Site Configuration",
+      "description": "Whole-system branding, announcements, feature toggles, Fatwa notices, and footer texts synced in real-time",
+      "type": "object",
+      "properties": {
+        "siteNameEn": { "type": "string", "maxLength": 120 },
+        "siteNameMy": { "type": "string", "maxLength": 150 },
+        "heroTitleMy": { "type": "string", "maxLength": 200 },
+        "heroSubtitle": { "type": "string", "maxLength": 1000 },
+        "searchPlaceholder": { "type": "string", "maxLength": 200 },
+        "announcementEnabled": { "type": "boolean" },
+        "announcementText": { "type": "string", "maxLength": 500 },
+        "announcementType": { "type": "string", "enum": ["info", "warning", "success"] },
+        "maintenanceMode": { "type": "boolean" },
+        "maintenanceMessage": { "type": "string", "maxLength": 1000 },
+        "enableFatwaSection": { "type": "boolean" },
+        "enableFatwaSubmission": { "type": "boolean" },
+        "enableContactTab": { "type": "boolean" },
+        "enableWhatsappFloat": { "type": "boolean" },
+        "enableTelegramButtons": { "type": "boolean" },
+        "showDefaultSampleFatwas": { "type": "boolean" },
+        "fatwaTitle": { "type": "string", "maxLength": 200 },
+        "fatwaSubtitle": { "type": "string", "maxLength": 1000 },
+        "fatwaNotice1": { "type": "string", "maxLength": 1000 },
+        "fatwaNotice2": { "type": "string", "maxLength": 1000 },
+        "fatwaWhatsappNumber": { "type": "string", "maxLength": 64 },
+        "footerDescription": { "type": "string", "maxLength": 1000 },
+        "contactEmail": { "type": "string", "maxLength": 200 },
+        "footerCopyright": { "type": "string", "maxLength": 200 },
+        "footerTagline": { "type": "string", "maxLength": 200 },
+        "updatedAt": { "type": "string", "maxLength": 64 },
+        "updatedBy": { "type": "string", "maxLength": 254 }
+      },
+      "required": ["siteNameEn", "siteNameMy", "heroTitleMy", "heroSubtitle"]
+    },
     "AdminUser": {
       "title": "Authorized Admin Account",
       "description": "Gmail accounts granted Admin Control Panel access",
@@ -129,6 +189,10 @@
       "schema": "UserSubmittedFatwa",
       "description": "Fatwa questions submitted by community members"
     },
+    "/published_fatwas/{fatwaId}": {
+      "schema": "PublishedFatwa",
+      "description": "Official Fatwa archive managed by Admin and synced live to all visitors"
+    },
     "/team_members/{memberId}": {
       "schema": "AdminContact",
       "description": "Organization team members and contact numbers managed by Admin"
@@ -136,6 +200,10 @@
     "/settings/{settingId}": {
       "schema": "AppSetting",
       "description": "Global app configurations such as Telegram Channel DB link"
+    },
+    "/site_config/{configId}": {
+      "schema": "SiteConfig",
+      "description": "Whole-system branding, announcements, feature toggles, Fatwa notices, and footer settings"
     },
     "/admin_users/{adminEmail}": {
       "schema": "AdminUser",

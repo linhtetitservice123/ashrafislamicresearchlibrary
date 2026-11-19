@@ -28,6 +28,8 @@ import {
   X,
   Layers,
   ArrowUpDown,
+  Megaphone,
+  Wrench,
 } from 'lucide-react';
 import {
   Paper,
@@ -35,8 +37,16 @@ import {
   UserSubmittedFatwa,
   AdminContact,
   AdminUser,
+  SiteConfig,
+  FatwaItem,
 } from './types';
-import { INITIAL_PAPERS, INITIAL_ADMIN_CONTACTS, CATEGORIES_CONFIG, DEFAULT_TELEGRAM_DB_URL } from './data/initialData';
+import {
+  INITIAL_PAPERS,
+  INITIAL_ADMIN_CONTACTS,
+  CATEGORIES_CONFIG,
+  DEFAULT_TELEGRAM_DB_URL,
+  DEFAULT_SITE_CONFIG,
+} from './data/initialData';
 import { auth, googleAuthProvider, OWNER_ADMIN_EMAIL } from './lib/firebase';
 import { Header } from './components/Header';
 import { HeroSection } from './components/HeroSection';
@@ -58,6 +68,7 @@ import {
   saveTelegramChannelUrlToFirestore,
   subscribeToTelegramChannelUrl,
   updatePaperTelegramLinkInFirestore,
+  saveFatwaInquiryToFirestore,
   updateFatwaInquiryStatusInFirestore,
   answerFatwaInquiryInFirestore,
   deleteFatwaInquiryFromFirestore,
@@ -69,6 +80,11 @@ import {
   saveAdminUserToFirestore,
   deleteAdminUserFromFirestore,
   subscribeToAdminUsers,
+  saveSiteConfigToFirestore,
+  subscribeToSiteConfig,
+  savePublishedFatwaToFirestore,
+  deletePublishedFatwaFromFirestore,
+  subscribeToPublishedFatwas,
 } from './services/firestoreService';
 
 export default function App() {
@@ -159,6 +175,30 @@ export default function App() {
     return [];
   });
 
+  // Global Site Configuration state (Real-time synced from Firestore /site_config/main)
+  const [siteConfig, setSiteConfig] = useState<SiteConfig>(() => {
+    try {
+      const saved = localStorage.getItem('ira_site_config');
+      if (saved) {
+        return { ...DEFAULT_SITE_CONFIG, ...JSON.parse(saved) };
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return DEFAULT_SITE_CONFIG;
+  });
+
+  // Official Published Fatwas Archive (Real-time synced from Firestore /published_fatwas)
+  const [publishedFatwas, setPublishedFatwas] = useState<FatwaItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('ira_published_fatwas');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return [];
+  });
+
   // UI state
   const [currentTab, setCurrentTab] = useState<'papers' | 'fatwa' | 'bookmarks' | 'contact' | 'admin'>('papers');
   const [searchQuery, setSearchQuery] = useState('');
@@ -166,8 +206,12 @@ export default function App() {
   const [sortBy, setSortBy] = useState<'recent' | 'popular' | 'downloads' | 'pages'>('recent');
   const [viewMode, setViewMode] = useState<'categories' | 'grid'>('categories');
 
-  // Modals
-  const [readerPaper, setReaderPaper] = useState<Paper | null>(null);
+  // Modals (store readerPaperId so reader reflects real-time edits immediately)
+  const [readerPaperId, setReaderPaperId] = useState<string | null>(null);
+  const readerPaper = useMemo(
+    () => papers.find((p) => p.id === readerPaperId) || null,
+    [papers, readerPaperId]
+  );
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isGitHubModalOpen, setIsGitHubModalOpen] = useState(false);
@@ -184,6 +228,24 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  // Sync browser tab title live when Admin updates siteName
+  useEffect(() => {
+    if (siteConfig.siteNameEn || siteConfig.siteNameMy) {
+      document.title = `${siteConfig.siteNameEn} | ${siteConfig.siteNameMy}`;
+    }
+  }, [siteConfig.siteNameEn, siteConfig.siteNameMy]);
+
+  // Redirect non-admins away from disabled sections immediately on real-time toggle
+  useEffect(() => {
+    if (!isAdmin) {
+      if (currentTab === 'fatwa' && !siteConfig.enableFatwaSection) {
+        setCurrentTab('papers');
+      } else if (currentTab === 'contact' && !siteConfig.enableContactTab) {
+        setCurrentTab('papers');
+      }
+    }
+  }, [currentTab, isAdmin, siteConfig.enableFatwaSection, siteConfig.enableContactTab]);
+
   // Check URL query parameters for direct book link (e.g. ?paper=paper-123 or ?book=paper-123)
   useEffect(() => {
     const checkUrlForPaper = () => {
@@ -194,7 +256,7 @@ export default function App() {
           const matchingPaper = papers.find((p) => p.id === paperIdFromUrl);
           if (matchingPaper) {
             setCurrentTab('papers');
-            setReaderPaper(matchingPaper);
+            setReaderPaperId(matchingPaper.id);
             showToast(`"${matchingPaper.title}" စာအုပ်အား Telegram Direct Link ဖြင့် တိုက်ရိုက်ဖွင့်လှစ်ထားပါသည် ✈️`);
           }
         }
@@ -248,6 +310,22 @@ export default function App() {
       console.error(e);
     }
   }, [userFatwas]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ira_site_config', JSON.stringify(siteConfig));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [siteConfig]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ira_published_fatwas', JSON.stringify(publishedFatwas));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [publishedFatwas]);
 
   // Listen to Firebase Google Auth state
   useEffect(() => {
@@ -334,8 +412,19 @@ export default function App() {
     return () => unsubAdmins();
   }, [isAdmin]);
 
-  // Firestore real-time synchronization for public data
+  // Firestore real-time synchronization for ALL public system data
   useEffect(() => {
+    const unsubSiteConfig = subscribeToSiteConfig(
+      (remoteConfig) => {
+        if (remoteConfig) {
+          setSiteConfig({ ...DEFAULT_SITE_CONFIG, ...remoteConfig });
+        } else {
+          setSiteConfig(DEFAULT_SITE_CONFIG);
+        }
+      },
+      (err) => console.warn('Site config sync error:', err)
+    );
+
     const unsubPapers = subscribeToPapers(
       (remotePapers) => {
         const cleanRemote = remotePapers.filter((p) => p && !p.id.startsWith('paper-00'));
@@ -371,93 +460,128 @@ export default function App() {
       (err) => console.warn('Fatwa inquiries sync error:', err)
     );
 
+    const unsubPublishedFatwas = subscribeToPublishedFatwas(
+      (remotePublished) => {
+        const sorted = [...remotePublished].sort(
+          (a, b) => new Date(b.answeredDate || 0).getTime() - new Date(a.answeredDate || 0).getTime()
+        );
+        setPublishedFatwas(sorted);
+      },
+      (err) => console.warn('Published fatwas sync error:', err)
+    );
+
     return () => {
+      unsubSiteConfig();
       unsubPapers();
       unsubTeam();
       unsubChannelUrl();
       unsubFatwas();
+      unsubPublishedFatwas();
     };
   }, []);
 
+  // Admin Handler: Save Global Site Config (Real-time synced to all visitors)
+  const handleSaveSiteConfig = async (nextConfig: SiteConfig) => {
+    await saveSiteConfigToFirestore(nextConfig);
+    setSiteConfig(nextConfig);
+  };
+
+  // Admin Handler: Save Published Official Fatwa
+  const handleSavePublishedFatwa = async (fatwa: FatwaItem) => {
+    await savePublishedFatwaToFirestore(fatwa);
+  };
+
+  // Admin Handler: Delete Published Official Fatwa
+  const handleDeletePublishedFatwa = async (fatwaId: string) => {
+    await deletePublishedFatwaFromFirestore(fatwaId);
+  };
+
+  // Public Handler: Submit Community Fatwa Inquiry
+  const handleSubmitFatwaInquiry = async (inquiry: UserSubmittedFatwa) => {
+    await saveFatwaInquiryToFirestore(inquiry);
+    showToast('သင်၏ ဖသ်ဝါမေးခွန်းအား အောင်မြင်စွာ ပေးပို့ပြီးပါပြီ ✓');
+  };
+
+  // Admin Handler: Save / Edit Paper (from AdminPanel, stays in AdminPanel)
+  const handleAdminSavePaper = async (paperToSave: Paper) => {
+    try {
+      await savePaperToFirestore(paperToSave);
+      showToast(`"${paperToSave.title}" အား အားလုံးထံ Real-Time Sync သိမ်းဆည်းပြီးပါပြီ ✓`);
+    } catch (err) {
+      console.error('Paper save Firestore error:', err);
+      showToast('စာအုပ်သိမ်းဆည်းရာတွင် Firestore ချိတ်ဆက်မှု အမှားအယွင်း ဖြစ်ပေါ်နေပါသည်။');
+    }
+  };
+
   // Admin Handler: Delete Paper
-  const handleDeletePaper = (paperId: string) => {
-    setPapers((prev) => (Array.isArray(prev) ? prev.filter((p) => p.id !== paperId) : []));
-    deletePaperFromFirestore(paperId).catch((err) =>
-      console.warn('Paper deleted locally, Firestore sync error:', err)
-    );
-    showToast('စာအုပ်အား ဝဘ်ဆိုက်စာရင်းမှ ဖျက်ပစ်ပြီးပါပြီ ✓');
+  const handleDeletePaper = async (paperId: string) => {
+    try {
+      await deletePaperFromFirestore(paperId);
+      showToast('စာအုပ်အား ဝဘ်ဆိုက်တစ်ခုလုံးမှ Real-Time ဖျက်ပစ်ပြီးပါပြီ ✓');
+    } catch (err) {
+      console.error('Paper delete Firestore error:', err);
+      showToast('စာအုပ်ဖျက်ရာတွင် အမှားအယွင်း ဖြစ်ပေါ်နေပါသည်။');
+    }
   };
 
   // Admin Handler: Save Team Member
-  const handleSaveTeamMember = (member: AdminContact) => {
-    setTeamMembers((prev) => {
-      const safe = Array.isArray(prev) ? prev : [];
-      const exists = safe.some((m) => m.id === member.id);
-      return exists ? safe.map((m) => (m.id === member.id ? member : m)) : [...safe, member];
-    });
-    saveTeamMemberToFirestore(member).catch((err) =>
-      console.warn('Team member saved locally, Firestore error:', err)
-    );
-    showToast(`"${member.nameMy}" အချက်အလက်များအား သိမ်းဆည်းပြီးပါပြီ ✓`);
+  const handleSaveTeamMember = async (member: AdminContact) => {
+    try {
+      await saveTeamMemberToFirestore(member);
+      showToast(`"${member.nameMy}" အချက်အလက်များအား အားလုံးထံ Real-Time Sync သိမ်းဆည်းပြီးပါပြီ ✓`);
+    } catch (err) {
+      console.error('Team member save Firestore error:', err);
+      showToast('အဖွဲ့ဝင်သိမ်းဆည်းရာတွင် အမှားအယွင်း ဖြစ်ပေါ်နေပါသည်။');
+    }
   };
 
   // Admin Handler: Delete Team Member
-  const handleDeleteTeamMember = (memberId: string) => {
-    setTeamMembers((prev) => (Array.isArray(prev) ? prev.filter((m) => m.id !== memberId) : []));
-    deleteTeamMemberFromFirestore(memberId).catch((err) =>
-      console.warn('Team member deleted locally, Firestore error:', err)
-    );
-    showToast('အဖွဲ့ဝင်အား စာရင်းမှ ဖယ်ရှားလိုက်ပါပြီ ✓');
+  const handleDeleteTeamMember = async (memberId: string) => {
+    try {
+      await deleteTeamMemberFromFirestore(memberId);
+      showToast('အဖွဲ့ဝင်အား စာရင်းမှ Real-Time ဖယ်ရှားလိုက်ပါပြီ ✓');
+    } catch (err) {
+      console.error('Team member delete Firestore error:', err);
+      showToast('အဖွဲ့ဝင်ဖယ်ရှားရာတွင် အမှားအယွင်း ဖြစ်ပေါ်နေပါသည်။');
+    }
   };
 
   // Admin Handler: Update Fatwa Status
-  const handleUpdateFatwaStatus = (id: string, status: 'pending' | 'answered') => {
-    setUserFatwas((prev) =>
-      (Array.isArray(prev) ? prev : []).map((f) =>
-        f.id === id ? { ...f, status } : f
-      )
-    );
-    updateFatwaInquiryStatusInFirestore(id, status).catch((err) =>
-      console.warn('Fatwa updated locally, Firestore sync error:', err)
-    );
-    showToast('ဖသ်ဝါမေးခွန်း အခြေအနေအား ပြင်ဆင်ပြီးပါပြီ ✓');
+  const handleUpdateFatwaStatus = async (id: string, status: 'pending' | 'answered') => {
+    try {
+      await updateFatwaInquiryStatusInFirestore(id, status);
+      showToast('ဖသ်ဝါမေးခွန်း အခြေအနေအား အားလုံးထံ Real-Time ပြင်ဆင်ပြီးပါပြီ ✓');
+    } catch (err) {
+      console.error('Fatwa status update Firestore error:', err);
+      showToast('ဖသ်ဝါအခြေအနေ ပြင်ဆင်ရာတွင် အမှားအယွင်း ဖြစ်ပေါ်နေပါသည်။');
+    }
   };
 
   // Admin Handler: Answer Fatwa Question Directly
-  const handleAnswerFatwa = (
+  const handleAnswerFatwa = async (
     id: string,
     answerText: string,
     kitabReference?: string,
     scholarName?: string
   ) => {
-    const answeredAt = new Date().toISOString().split('T')[0];
-    setUserFatwas((prev) =>
-      (Array.isArray(prev) ? prev : []).map((f) =>
-        f.id === id
-          ? {
-              ...f,
-              status: 'answered',
-              answerText,
-              kitabReference: kitabReference || 'ဟနဖီ ဖိကဟ်ကျမ်းဂန်များ',
-              scholarName: scholarName || 'ဒါရုလ်အိဖ်တာအ် ဓမ္မသတ်အဖွဲ့',
-              answeredAt,
-            }
-          : f
-      )
-    );
-    answerFatwaInquiryInFirestore(id, answerText, kitabReference, scholarName).catch((err) =>
-      console.warn('Fatwa answered locally, Firestore sync error:', err)
-    );
-    showToast('ဖသ်ဝါ ဓမ္မသတ် အဖြေတော်အား အောင်မြင်စွာ သိမ်းဆည်း/ဖြေကြားပြီးပါပြီ ✓');
+    try {
+      await answerFatwaInquiryInFirestore(id, answerText, kitabReference, scholarName);
+      showToast('ဖသ်ဝါ ဓမ္မသတ် အဖြေတော်အား အားလုံးထံ Real-Time ထုတ်ပြန်ပြီးပါပြီ ✓');
+    } catch (err) {
+      console.error('Fatwa answer Firestore error:', err);
+      showToast('ဖသ်ဝါအဖြေသိမ်းဆည်းရာတွင် အမှားအယွင်း ဖြစ်ပေါ်နေပါသည်။');
+    }
   };
 
   // Admin Handler: Delete Fatwa
-  const handleDeleteFatwa = (id: string) => {
-    setUserFatwas((prev) => (Array.isArray(prev) ? prev.filter((f) => f.id !== id) : []));
-    deleteFatwaInquiryFromFirestore(id).catch((err) =>
-      console.warn('Fatwa deleted locally, Firestore sync error:', err)
-    );
-    showToast('ဖသ်ဝါမေးခွန်းအား ဖျက်ပစ်ပြီးပါပြီ ✓');
+  const handleDeleteFatwa = async (id: string) => {
+    try {
+      await deleteFatwaInquiryFromFirestore(id);
+      showToast('ဖသ်ဝါမေးခွန်းအား ဝဘ်ဆိုက်တစ်ခုလုံးမှ Real-Time ဖျက်ပစ်ပြီးပါပြီ ✓');
+    } catch (err) {
+      console.error('Fatwa delete Firestore error:', err);
+      showToast('ဖသ်ဝါဖျက်ရာတွင် အမှားအယွင်း ဖြစ်ပေါ်နေပါသည်။');
+    }
   };
 
   // Google Auth Handlers
@@ -504,25 +628,26 @@ export default function App() {
   };
 
   // Handler to update a book's specific Telegram post link
-  const handleUpdatePaperTelegramLink = (paperId: string, telegramLink: string) => {
-    setPapers((prev) =>
-      (Array.isArray(prev) ? prev : []).map((p) =>
-        p && p.id === paperId ? { ...p, telegramLink } : p
-      )
-    );
-    updatePaperTelegramLinkInFirestore(paperId, telegramLink).catch((err) =>
-      console.warn('Paper telegram link saved locally, Firestore sync error:', err)
-    );
-    showToast('စာအုပ်အတွက် Telegram Channel Post လင့်ခ်အား သိမ်းဆည်းပြီးပါပြီ ✓');
+  const handleUpdatePaperTelegramLink = async (paperId: string, telegramLink: string) => {
+    try {
+      await updatePaperTelegramLinkInFirestore(paperId, telegramLink);
+      showToast('စာအုပ်အတွက် Telegram Channel Post လင့်ခ်အား အားလုံးထံ Real-Time Sync သိမ်းဆည်းပြီးပါပြီ ✓');
+    } catch (err) {
+      console.error('Paper telegram link Firestore error:', err);
+      showToast('Telegram လင့်ခ်သိမ်းဆည်းရာတွင် အမှားအယွင်း ဖြစ်ပေါ်နေပါသည်။');
+    }
   };
 
   // Handler to save overall Telegram Channel URL
-  const handleSaveTelegramDbUrl = (newUrl: string) => {
-    setTelegramDbUrl(newUrl);
-    saveTelegramChannelUrlToFirestore(newUrl).catch((err) =>
-      console.warn('Channel URL saved locally, Firestore sync error:', err)
-    );
-    showToast('Telegram Channel လင့်ခ်အား အောင်မြင်စွာ ပြင်ဆင်ပြီးပါပြီ ✓');
+  const handleSaveTelegramDbUrl = async (newUrl: string) => {
+    try {
+      await saveTelegramChannelUrlToFirestore(newUrl);
+      setTelegramDbUrl(newUrl);
+      showToast('Telegram Channel လင့်ခ်အား အားလုံးထံ Real-Time Sync ပြင်ဆင်ပြီးပါပြီ ✓');
+    } catch (err) {
+      console.error('Channel URL Firestore error:', err);
+      showToast('Telegram Channel လင့်ခ်သိမ်းဆည်းရာတွင် အမှားအယွင်း ဖြစ်ပေါ်နေပါသည်။');
+    }
   };
 
   // Toggle Bookmark
@@ -540,19 +665,27 @@ export default function App() {
     });
   };
 
-  // Upload handler
-  const handlePaperUploaded = (newPaper: Paper) => {
-    setPapers((prev) => [newPaper, ...(Array.isArray(prev) ? prev : [])]);
-    savePaperToFirestore(newPaper).catch((err) => console.warn('Saved locally, Firestore sync error:', err));
-    showToast(`"${newPaper.title}" စာတမ်းအား အောင်မြင်စွာ တင်သွင်းပြီးပါပြီ ✓`);
-    handleOpenReader(newPaper);
+  // Upload handler (from UploadPaperModal)
+  const handlePaperUploaded = async (newPaper: Paper) => {
+    try {
+      await savePaperToFirestore(newPaper);
+      showToast(`"${newPaper.title}" စာတမ်းအား အားလုံးထံ Real-Time တင်သွင်းပြီးပါပြီ ✓`);
+      handleOpenReader(newPaper);
+    } catch (err) {
+      console.error('Paper upload Firestore error:', err);
+      showToast('စာတမ်းတင်သွင်းရာတွင် အမှားအယွင်း ဖြစ်ပေါ်နေပါသည်။');
+    }
   };
 
   // Add new paper directly from Telegram Post Sync
-  const handleAddNewPaperFromTelegram = (newPaper: Paper) => {
-    setPapers((prev) => [newPaper, ...(Array.isArray(prev) ? prev : [])]);
-    savePaperToFirestore(newPaper).catch((err) => console.warn('Saved locally, Firestore sync error:', err));
-    showToast(`"${newPaper.title}" အား ဝဘ်ဆိုက်စာကြည့်တိုက်ထဲသို့ အောင်မြင်စွာ ထည့်သွင်းပြီးပါပြီ ✓`);
+  const handleAddNewPaperFromTelegram = async (newPaper: Paper) => {
+    try {
+      await savePaperToFirestore(newPaper);
+      showToast(`"${newPaper.title}" အား ဝဘ်ဆိုက်တစ်ခုလုံးသို့ Real-Time ထည့်သွင်းပြီးပါပြီ ✓`);
+    } catch (err) {
+      console.error('Telegram paper sync Firestore error:', err);
+      showToast('စာအုပ်ထည့်သွင်းရာတွင် အမှားအယွင်း ဖြစ်ပေါ်နေပါသည်။');
+    }
   };
 
   // Open Admin Inquiry with specific paper
@@ -580,7 +713,7 @@ export default function App() {
         p && p.id === paper.id ? { ...p, readCount: (p.readCount || 0) + 1 } : p
       )
     );
-    setReaderPaper(paper);
+    setReaderPaperId(paper.id);
     try {
       const url = new URL(window.location.href);
       url.searchParams.set('paper', paper.id);
@@ -592,7 +725,7 @@ export default function App() {
 
   // Reader Close
   const handleCloseReader = () => {
-    setReaderPaper(null);
+    setReaderPaperId(null);
     try {
       const url = new URL(window.location.href);
       url.searchParams.delete('paper');
@@ -726,8 +859,54 @@ export default function App() {
         isAdmin={isAdmin}
         onLogin={handleGoogleLogin}
         onLogout={handleLogout}
+        siteConfig={siteConfig}
       />
 
+      {/* Live Global Announcement Banner (Real-Time Synced by Admin) */}
+      {siteConfig.announcementEnabled && siteConfig.announcementText?.trim() && (
+        <div
+          className={`w-full px-4 py-2.5 text-xs sm:text-sm font-burmese border-b ${
+            siteConfig.announcementType === 'warning'
+              ? 'bg-[#7F1D1D] text-[#FEE2E2] border-[#991B1B]'
+              : siteConfig.announcementType === 'success'
+              ? 'bg-[#14532D] text-[#DCFCE7] border-[#166534]'
+              : 'bg-[#3B2010] text-[#FDEBD0] border-[#633A18]'
+          }`}
+        >
+          <div className="max-w-7xl mx-auto flex items-center justify-center gap-2 text-center">
+            <Megaphone className="w-4 h-4 shrink-0" />
+            <span className="font-medium break-words">{siteConfig.announcementText}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Notice if Maintenance Mode is active */}
+      {siteConfig.maintenanceMode && isAdmin && (
+        <div className="w-full bg-amber-600 text-white px-4 py-2 text-xs font-burmese text-center font-semibold">
+          ⚠️ Maintenance Mode ဖွင့်ထားပါသည် — သာမန်အသုံးပြုသူများသည် ပြင်ဆင်နေကြောင်း စာမျက်နှာကိုသာ မြင်တွေ့နေရပါသည်။
+        </div>
+      )}
+
+      {/* Maintenance Screen for Public Visitors */}
+      {siteConfig.maintenanceMode && !isAdmin ? (
+        <main className="flex-1 flex items-center justify-center px-4 py-16 font-burmese">
+          <div className="max-w-lg w-full bg-white rounded-3xl border-2 border-[#DECCB5] shadow-xl p-8 sm:p-10 text-center space-y-5">
+            <div className="w-16 h-16 mx-auto rounded-2xl bg-[#24130B] text-[#EAD8B5] flex items-center justify-center shadow-lg">
+              <Wrench className="w-8 h-8" />
+            </div>
+            <h1 className="text-xl sm:text-2xl font-bold text-[#2C1810]">
+              {siteConfig.siteNameMy}
+            </h1>
+            <p className="text-sm text-[#5C4535] leading-relaxed">
+              {siteConfig.maintenanceMessage}
+            </p>
+            <div className="text-xs text-[#8C7667] pt-2 border-t border-[#EFE5D7]">
+              {siteConfig.siteNameEn}
+            </div>
+          </div>
+        </main>
+      ) : (
+      <>
       {/* Hero Section (Visible in Papers tab and Bookmarks tab) */}
       {(currentTab === 'papers' || currentTab === 'bookmarks') && (
         <HeroSection
@@ -739,6 +918,7 @@ export default function App() {
             setIsAdminModalOpen(true);
           }}
           totalPapers={papers.length}
+          siteConfig={siteConfig}
         />
       )}
 
@@ -956,16 +1136,18 @@ export default function App() {
                             <ChevronRight className="w-3.5 h-3.5" />
                           </button>
 
-                          <a
-                            href={telegramDbUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-1.5 bg-[#229ED9] hover:bg-[#1B8BBF] text-white rounded-xl text-xs font-semibold flex items-center gap-1 transition-colors shadow-sm"
-                            title="ဤကဏ္ဍရှိ စာအုပ်များအား Telegram Database တွင် တိုက်ရိုက်ရှာဖွေရန်"
-                          >
-                            <Send className="w-3 h-3 fill-white" />
-                            <span>Telegram Database</span>
-                          </a>
+                          {siteConfig.enableTelegramButtons && (
+                            <a
+                              href={telegramDbUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1.5 bg-[#229ED9] hover:bg-[#1B8BBF] text-white rounded-xl text-xs font-semibold flex items-center gap-1 transition-colors shadow-sm"
+                              title="ဤကဏ္ဍရှိ စာအုပ်များအား Telegram Database တွင် တိုက်ရိုက်ရှာဖွေရန်"
+                            >
+                              <Send className="w-3 h-3 fill-white" />
+                              <span>Telegram Database</span>
+                            </a>
+                          )}
                         </div>
                       </div>
 
@@ -1025,17 +1207,22 @@ export default function App() {
         )}
 
         {/* TAB 2: FATWA & FIQH */}
-        {currentTab === 'fatwa' && (
+        {currentTab === 'fatwa' && (siteConfig.enableFatwaSection || isAdmin) && (
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
             <FatwaSection
               telegramDbUrl={telegramDbUrl}
               onOpenTelegramModal={isAdmin ? () => setIsTelegramModalOpen(true) : undefined}
+              siteConfig={siteConfig}
+              userFatwas={userFatwas}
+              publishedFatwas={publishedFatwas}
+              teamMembers={teamMembers}
+              onSubmitFatwaInquiry={handleSubmitFatwaInquiry}
             />
           </div>
         )}
 
         {/* TAB 3: CONTACT SECTION */}
-        {currentTab === 'contact' && (
+        {currentTab === 'contact' && (siteConfig.enableContactTab || isAdmin) && (
           <AdminContactSection
             contacts={teamMembers}
             initialTopic={adminInquiryTopic}
@@ -1048,7 +1235,7 @@ export default function App() {
         {currentTab === 'admin' && isAdmin && authUser?.email && (
           <AdminPanel
             papers={papers}
-            onSavePaper={handlePaperUploaded}
+            onSavePaper={handleAdminSavePaper}
             onDeletePaper={handleDeletePaper}
             onUpdateTelegramLink={handleUpdatePaperTelegramLink}
             telegramDbUrl={telegramDbUrl}
@@ -1060,6 +1247,11 @@ export default function App() {
             onUpdateFatwaStatus={handleUpdateFatwaStatus}
             onAnswerFatwa={handleAnswerFatwa}
             onDeleteFatwa={handleDeleteFatwa}
+            publishedFatwas={publishedFatwas}
+            onSavePublishedFatwa={handleSavePublishedFatwa}
+            onDeletePublishedFatwa={handleDeletePublishedFatwa}
+            siteConfig={siteConfig}
+            onSaveSiteConfig={handleSaveSiteConfig}
             onOpenReader={handleOpenReader}
             onNavigateHome={() => setCurrentTab('papers')}
             authUserEmail={authUser.email}
@@ -1070,26 +1262,30 @@ export default function App() {
           />
         )}
       </main>
+      </>
+      )}
 
       {/* Floating Fast WhatsApp Helpline Button */}
-      <aside aria-label="Quick WhatsApp Contact" className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-30 flex flex-col items-end gap-3">
-        <button
-          onClick={() => {
-            setAdminInquiryTopic('');
-            setIsAdminModalOpen(true);
-          }}
-          className="flex items-center gap-2 p-3.5 sm:px-4 sm:py-3 bg-[#1B3F2B] hover:bg-[#153423] text-white rounded-full shadow-2xl border-2 border-[#2E7D4E] hover:scale-105 transition-all group"
-          title="WhatsApp တိုက်ရိုက်ဆက်သွယ်ရန်"
-        >
-          <div className="relative">
-            <MessageCircle className="w-5 h-5 text-[#4ADE80]" />
-            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#22C55E]"></span>
-          </div>
-          <span className="hidden sm:inline font-burmese text-xs sm:text-sm font-semibold pr-1">
-            WhatsApp Admin
-          </span>
-        </button>
-      </aside>
+      {siteConfig.enableWhatsappFloat && (!siteConfig.maintenanceMode || isAdmin) && (
+        <aside aria-label="Quick WhatsApp Contact" className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-30 flex flex-col items-end gap-3">
+          <button
+            onClick={() => {
+              setAdminInquiryTopic('');
+              setIsAdminModalOpen(true);
+            }}
+            className="flex items-center gap-2 p-3.5 sm:px-4 sm:py-3 bg-[#1B3F2B] hover:bg-[#153423] text-white rounded-full shadow-2xl border-2 border-[#2E7D4E] hover:scale-105 transition-all group"
+            title="WhatsApp တိုက်ရိုက်ဆက်သွယ်ရန်"
+          >
+            <div className="relative">
+              <MessageCircle className="w-5 h-5 text-[#4ADE80]" />
+              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#22C55E]"></span>
+            </div>
+            <span className="hidden sm:inline font-burmese text-xs sm:text-sm font-semibold pr-1">
+              WhatsApp Admin
+            </span>
+          </button>
+        </aside>
+      )}
 
       {/* Modals */}
       <PaperReaderModal
@@ -1166,6 +1362,7 @@ export default function App() {
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
         teamMembers={teamMembers}
+        siteConfig={siteConfig}
       />
     </div>
   );

@@ -58,7 +58,7 @@ service cloud.firestore {
         data.language is string && data.language.size() <= 32 &&
         data.abstract is string && data.abstract.size() <= 4000 &&
         (!('fullContent' in data) || (data.fullContent is string && data.fullContent.size() <= 100000)) &&
-        (!('tags' in data) || (data.tags is list && data.tags.size() <= 20)) &&
+        (!('tags' in data) || (data.tags is list && data.tags.size() <= 20 && (data.tags.size() == 0 || data.tags[0] is string))) &&
         (!('telegramLink' in data) || data.telegramLink == null || (data.telegramLink is string && data.telegramLink.size() <= 500));
     }
 
@@ -88,6 +88,35 @@ service cloud.firestore {
         (!('answeredAt' in data) || (data.answeredAt is string && data.answeredAt.size() <= 64));
     }
 
+    function isValidPublishedFatwa(data) {
+      return data.keys().hasAll([
+          'id', 'fatwaNumber', 'category', 'question',
+          'answerSummary', 'answerDetail', 'kitabReference', 'scholarName'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'fatwaNumber', 'category', 'question', 'questionerName', 'location',
+          'askedDate', 'answeredDate', 'answerSummary', 'answerDetail', 'arabicReference',
+          'kitabReference', 'scholarName', 'scholarTitle', 'isVerified', 'viewsCount', 'tags'
+        ]) &&
+        data.id is string && data.id.size() > 0 && data.id.size() <= 128 &&
+        data.fatwaNumber is string && data.fatwaNumber.size() > 0 && data.fatwaNumber.size() <= 64 &&
+        data.category in ['namaz', 'roza', 'hajj', 'zakat', 'trade_business', 'amal'] &&
+        data.question is string && data.question.size() > 0 && data.question.size() <= 4000 &&
+        (!('questionerName' in data) || (data.questionerName is string && data.questionerName.size() <= 150)) &&
+        (!('location' in data) || (data.location is string && data.location.size() <= 100)) &&
+        (!('askedDate' in data) || (data.askedDate is string && data.askedDate.size() <= 64)) &&
+        (!('answeredDate' in data) || (data.answeredDate is string && data.answeredDate.size() <= 64)) &&
+        data.answerSummary is string && data.answerSummary.size() <= 2000 &&
+        data.answerDetail is string && data.answerDetail.size() > 0 && data.answerDetail.size() <= 15000 &&
+        (!('arabicReference' in data) || (data.arabicReference is string && data.arabicReference.size() <= 2000)) &&
+        data.kitabReference is string && data.kitabReference.size() <= 500 &&
+        data.scholarName is string && data.scholarName.size() <= 200 &&
+        (!('scholarTitle' in data) || (data.scholarTitle is string && data.scholarTitle.size() <= 200)) &&
+        (!('isVerified' in data) || data.isVerified is bool) &&
+        (!('viewsCount' in data) || data.viewsCount is number) &&
+        (!('tags' in data) || (data.tags is list && data.tags.size() <= 20 && (data.tags.size() == 0 || data.tags[0] is string)));
+    }
+
     function isValidTeamMember(data) {
       return data.keys().hasAll(['id', 'nameMy', 'roleMy', 'phoneNumber', 'whatsappNumber']) &&
         data.keys().hasOnly([
@@ -102,9 +131,12 @@ service cloud.firestore {
         data.whatsappNumber is string && data.whatsappNumber.size() <= 64 &&
         (!('name' in data) || (data.name is string && data.name.size() <= 150)) &&
         (!('role' in data) || (data.role is string && data.role.size() <= 150)) &&
+        (!('displayPhone' in data) || (data.displayPhone is string && data.displayPhone.size() <= 64)) &&
+        (!('displayWhatsapp' in data) || (data.displayWhatsapp is string && data.displayWhatsapp.size() <= 64)) &&
         (!('email' in data) || (data.email is string && data.email.size() <= 200)) &&
         (!('activeHours' in data) || (data.activeHours is string && data.activeHours.size() <= 150)) &&
-        (!('specialization' in data) || (data.specialization is string && data.specialization.size() <= 300));
+        (!('specialization' in data) || (data.specialization is string && data.specialization.size() <= 300)) &&
+        (!('avatarSeed' in data) || (data.avatarSeed is string && data.avatarSeed.size() <= 128));
     }
 
     function isValidAppSetting(data) {
@@ -113,6 +145,47 @@ service cloud.firestore {
         data.key is string && data.key.size() > 0 && data.key.size() <= 64 &&
         data.value is string && data.value.size() <= 500 &&
         (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64));
+    }
+
+    function isValidSiteConfig(data) {
+      return data.keys().hasAll(['siteNameEn', 'siteNameMy', 'heroTitleMy', 'heroSubtitle']) &&
+        data.keys().hasOnly([
+          'siteNameEn', 'siteNameMy', 'heroTitleMy', 'heroSubtitle', 'searchPlaceholder',
+          'announcementEnabled', 'announcementText', 'announcementType',
+          'maintenanceMode', 'maintenanceMessage',
+          'enableFatwaSection', 'enableFatwaSubmission', 'enableContactTab',
+          'enableWhatsappFloat', 'enableTelegramButtons', 'showDefaultSampleFatwas',
+          'fatwaTitle', 'fatwaSubtitle', 'fatwaNotice1', 'fatwaNotice2', 'fatwaWhatsappNumber',
+          'footerDescription', 'contactEmail', 'footerCopyright', 'footerTagline',
+          'updatedAt', 'updatedBy'
+        ]) &&
+        data.siteNameEn is string && data.siteNameEn.size() > 0 && data.siteNameEn.size() <= 120 &&
+        data.siteNameMy is string && data.siteNameMy.size() > 0 && data.siteNameMy.size() <= 150 &&
+        data.heroTitleMy is string && data.heroTitleMy.size() <= 200 &&
+        data.heroSubtitle is string && data.heroSubtitle.size() <= 1000 &&
+        (!('searchPlaceholder' in data) || (data.searchPlaceholder is string && data.searchPlaceholder.size() <= 200)) &&
+        (!('announcementEnabled' in data) || data.announcementEnabled is bool) &&
+        (!('announcementText' in data) || (data.announcementText is string && data.announcementText.size() <= 500)) &&
+        (!('announcementType' in data) || data.announcementType in ['info', 'warning', 'success']) &&
+        (!('maintenanceMode' in data) || data.maintenanceMode is bool) &&
+        (!('maintenanceMessage' in data) || (data.maintenanceMessage is string && data.maintenanceMessage.size() <= 1000)) &&
+        (!('enableFatwaSection' in data) || data.enableFatwaSection is bool) &&
+        (!('enableFatwaSubmission' in data) || data.enableFatwaSubmission is bool) &&
+        (!('enableContactTab' in data) || data.enableContactTab is bool) &&
+        (!('enableWhatsappFloat' in data) || data.enableWhatsappFloat is bool) &&
+        (!('enableTelegramButtons' in data) || data.enableTelegramButtons is bool) &&
+        (!('showDefaultSampleFatwas' in data) || data.showDefaultSampleFatwas is bool) &&
+        (!('fatwaTitle' in data) || (data.fatwaTitle is string && data.fatwaTitle.size() <= 200)) &&
+        (!('fatwaSubtitle' in data) || (data.fatwaSubtitle is string && data.fatwaSubtitle.size() <= 1000)) &&
+        (!('fatwaNotice1' in data) || (data.fatwaNotice1 is string && data.fatwaNotice1.size() <= 1000)) &&
+        (!('fatwaNotice2' in data) || (data.fatwaNotice2 is string && data.fatwaNotice2.size() <= 1000)) &&
+        (!('fatwaWhatsappNumber' in data) || (data.fatwaWhatsappNumber is string && data.fatwaWhatsappNumber.size() <= 64)) &&
+        (!('footerDescription' in data) || (data.footerDescription is string && data.footerDescription.size() <= 1000)) &&
+        (!('contactEmail' in data) || (data.contactEmail is string && data.contactEmail.size() <= 200)) &&
+        (!('footerCopyright' in data) || (data.footerCopyright is string && data.footerCopyright.size() <= 200)) &&
+        (!('footerTagline' in data) || (data.footerTagline is string && data.footerTagline.size() <= 200)) &&
+        (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64)) &&
+        (!('updatedBy' in data) || (data.updatedBy is string && data.updatedBy.size() <= 254));
     }
 
     function isValidAdminUser(data) {
@@ -150,6 +223,13 @@ service cloud.firestore {
       allow delete: if isAdmin() && isValidId(inquiryId);
     }
 
+    // Official Published Fatwas Collection (Public Read, Admin Write)
+    match /published_fatwas/{fatwaId} {
+      allow get, list: if true;
+      allow create, update: if isAdmin() && isValidId(fatwaId) && isValidPublishedFatwa(incoming()) && incoming().id == fatwaId;
+      allow delete: if isAdmin() && isValidId(fatwaId);
+    }
+
     // Organization Team Members / Contacts Collection (Public Read, Admin Write)
     match /team_members/{memberId} {
       allow get, list: if true;
@@ -163,6 +243,14 @@ service cloud.firestore {
       allow list: if isAdmin();
       allow create, update: if isAdmin() && isValidId(settingId) && isValidAppSetting(incoming());
       allow delete: if isAdmin() && isValidId(settingId);
+    }
+
+    // Global Site Configuration (Public Read for 'main', Admin Write)
+    match /site_config/{configId} {
+      allow get: if configId == 'main' || isAdmin();
+      allow list: if isAdmin();
+      allow create, update: if isAdmin() && isValidId(configId) && isValidSiteConfig(incoming());
+      allow delete: if isAdmin() && isValidId(configId) && configId != 'main';
     }
 
     // Authorized Admin Users Collection (Strict PII & RBAC Protection)

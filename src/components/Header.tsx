@@ -12,6 +12,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import type { User } from 'firebase/auth';
+import { SiteConfig } from '../types';
 
 interface HeaderProps {
   currentTab: string;
@@ -23,6 +24,7 @@ interface HeaderProps {
   isAdmin: boolean;
   onLogin: () => void;
   onLogout: () => void;
+  siteConfig: SiteConfig;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -35,6 +37,7 @@ export const Header: React.FC<HeaderProps> = ({
   isAdmin,
   onLogin,
   onLogout,
+  siteConfig,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -48,9 +51,13 @@ export const Header: React.FC<HeaderProps> = ({
 
   const publicNavItems: NavItem[] = [
     { id: 'papers', label: 'စာတမ်းများ', icon: BookOpen },
-    { id: 'fatwa', label: 'ဖသ်ဝါ', icon: ShieldCheck },
+    ...(siteConfig.enableFatwaSection || isAdmin
+      ? [{ id: 'fatwa', label: 'ဖသ်ဝါ', icon: ShieldCheck }]
+      : []),
     { id: 'bookmarks', label: 'သိမ်းဆည်းမှု', icon: Bookmark, badge: bookmarkCount },
-    { id: 'contact', label: 'ဆက်သွယ်ရန်', icon: PhoneCall },
+    ...(siteConfig.enableContactTab || isAdmin
+      ? [{ id: 'contact', label: 'ဆက်သွယ်ရန်', icon: PhoneCall }]
+      : []),
   ];
 
   const navItems: NavItem[] = isAdmin
@@ -77,10 +84,10 @@ export const Header: React.FC<HeaderProps> = ({
 
             <div className="min-w-0">
               <div className="font-cinzel text-sm sm:text-base lg:text-lg font-bold tracking-wider text-[#FAF7F2] group-hover:text-[#D9A86B] transition-colors truncate">
-                ISLAMIC RESEARCH ACADEMY
+                {siteConfig.siteNameEn}
               </div>
               <div className="text-[11px] sm:text-xs text-[#D4B996] font-burmese font-medium truncate">
-                အစ္စလာမ့် သုတေသန အကယ်ဒမီ
+                {siteConfig.siteNameMy}
               </div>
             </div>
           </button>
@@ -120,14 +127,16 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Right Actions: WhatsApp + Google Login/Logout */}
           <div className="flex items-center gap-2 shrink-0">
             {/* Desktop WhatsApp Quick Button */}
-            <button
-              onClick={openAdminModal}
-              className="hidden xl:flex items-center gap-2 px-3 py-2 bg-[#1B3F2B] hover:bg-[#235338] text-[#E3F8EB] text-xs font-medium rounded-xl border border-[#2E7D4E]/60 shadow-sm transition-all whitespace-nowrap"
-              title="WhatsApp ဆက်သွယ်ရန်"
-            >
-              <MessageCircle className="w-4 h-4 text-[#4ADE80]" />
-              <span className="font-burmese">WhatsApp</span>
-            </button>
+            {(siteConfig.enableWhatsappFloat || isAdmin) && (
+              <button
+                onClick={openAdminModal}
+                className="hidden xl:flex items-center gap-2 px-3 py-2 bg-[#1B3F2B] hover:bg-[#235338] text-[#E3F8EB] text-xs font-medium rounded-xl border border-[#2E7D4E]/60 shadow-sm transition-all whitespace-nowrap"
+                title="WhatsApp ဆက်သွယ်ရန်"
+              >
+                <MessageCircle className="w-4 h-4 text-[#4ADE80]" />
+                <span className="font-burmese">WhatsApp</span>
+              </button>
+            )}
 
             {/* Google Auth Button */}
             {!authUser ? (
@@ -246,18 +255,20 @@ export const Header: React.FC<HeaderProps> = ({
             );
           })}
 
-          <div className="pt-2 border-t border-[#3B1F0E]">
-            <button
-              onClick={() => {
-                openAdminModal();
-                setMobileMenuOpen(false);
-              }}
-              className="w-full flex items-center justify-center gap-2 py-2.5 bg-[#1B3F2B] border border-[#2E7D4E]/60 text-[#E3F8EB] rounded-xl text-xs font-burmese font-medium"
-            >
-              <MessageCircle className="w-4 h-4 text-[#4ADE80]" />
-              <span>WhatsApp တိုက်ရိုက်ဆက်သွယ်ရန်</span>
-            </button>
-          </div>
+          {(siteConfig.enableWhatsappFloat || isAdmin) && (
+            <div className="pt-2 border-t border-[#3B1F0E]">
+              <button
+                onClick={() => {
+                  openAdminModal();
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full flex items-center justify-center gap-2 py-2.5 bg-[#1B3F2B] border border-[#2E7D4E]/60 text-[#E3F8EB] rounded-xl text-xs font-burmese font-medium"
+              >
+                <MessageCircle className="w-4 h-4 text-[#4ADE80]" />
+                <span>WhatsApp တိုက်ရိုက်ဆက်သွယ်ရန်</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
     </header>

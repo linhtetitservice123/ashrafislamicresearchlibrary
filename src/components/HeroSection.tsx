@@ -8,6 +8,7 @@ import {
   MessageCircle,
   X,
 } from 'lucide-react';
+import { SiteConfig } from '../types';
 
 interface HeroSectionProps {
   searchQuery: string;
@@ -15,6 +16,7 @@ interface HeroSectionProps {
   openFatwaTab?: () => void;
   openAdminModal?: () => void;
   totalPapers: number;
+  siteConfig: SiteConfig;
 }
 
 export const HeroSection: React.FC<HeroSectionProps> = ({
@@ -23,6 +25,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   openFatwaTab,
   openAdminModal,
   totalPapers,
+  siteConfig,
 }) => {
   return (
     <section className="relative bg-gradient-to-b from-[#2B170E] via-[#351E12] to-[#FAF7F2] pt-8 sm:pt-12 pb-10 sm:pb-12 px-4 sm:px-6 lg:px-8 border-b border-[#E3D7C5]">
@@ -32,15 +35,15 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
         {/* Hero Title */}
         <h1 className="text-2xl sm:text-4xl md:text-5xl font-bold tracking-tight text-white mb-3 sm:mb-4 break-words">
           <span className="block font-cinzel text-[#FDFBF7] drop-shadow-sm">
-            ISLAMIC RESEARCH ACADEMY
+            {siteConfig.siteNameEn}
           </span>
           <span className="block text-xl sm:text-3xl md:text-4xl text-[#E8CBA5] font-burmese font-semibold mt-2">
-            သာသနာရေးရာ သုတေသနစာတမ်းများ ပလက်ဖောင်း
+            {siteConfig.heroTitleMy}
           </span>
         </h1>
 
         <p className="max-w-2xl mx-auto text-xs sm:text-base text-[#DBC2A6] font-burmese leading-relaxed mb-6 sm:mb-8">
-          ကုရ်အာန်၊ ဟဒီးစ်၊ ဖိကဟ် ဓမ္မသတ်နှင့် အစ္စလာမ့် သာသနာရေးရာ သုတေသနစာတမ်းများကို တစ်စုတစ်စည်းတည်း လေ့လာဖတ်ရှုနိုင်ပြီး ဖသ်ဝါဓမ္မသတ်များကို မေးမြန်းနိုင်ပါသည်။
+          {siteConfig.heroSubtitle}
         </p>
 
         {/* Search Bar */}
@@ -53,7 +56,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="စာတမ်းခေါင်းစဉ်၊ ရေးသားသူပညာရှင်၊ သော့ချက်စကားလုံးဖြင့် ရှာဖွေပါ..."
+              placeholder={siteConfig.searchPlaceholder || 'စာတမ်းခေါင်းစဉ်၊ ရေးသားသူပညာရှင်၊ သော့ချက်စကားလုံးဖြင့် ရှာဖွေပါ...'}
               className="w-full min-w-0 bg-transparent text-[#2C1810] placeholder-[#8F7E73] text-xs sm:text-base py-2.5 pr-2 focus:outline-none font-burmese"
             />
             {searchQuery && (
@@ -74,7 +77,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
         </div>
 
         {/* Fatwa CTA */}
-        {openFatwaTab && (
+        {openFatwaTab && siteConfig.enableFatwaSection && (
           <div className="flex items-center justify-center mb-8 sm:mb-10">
             <button
               onClick={openFatwaTab}
@@ -118,20 +121,32 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={openAdminModal}
-            className="bg-white/95 hover:bg-white backdrop-blur rounded-xl p-3.5 sm:p-4 border border-[#E0D3C1] hover:border-[#2E7D4E]/50 shadow-sm text-left flex flex-col justify-between transition-colors"
-          >
-            <div className="flex items-center gap-1.5 text-[#1E5638] text-[11px] sm:text-xs font-medium mb-1 font-burmese">
-              <MessageCircle className="w-4 h-4 text-[#22C55E] shrink-0" />
-              <span className="truncate">အကူအညီ / ဆွေးနွေး</span>
+          {siteConfig.enableWhatsappFloat ? (
+            <button
+              type="button"
+              onClick={openAdminModal}
+              className="bg-white/95 hover:bg-white backdrop-blur rounded-xl p-3.5 sm:p-4 border border-[#E0D3C1] hover:border-[#2E7D4E]/50 shadow-sm text-left flex flex-col justify-between transition-colors"
+            >
+              <div className="flex items-center gap-1.5 text-[#1E5638] text-[11px] sm:text-xs font-medium mb-1 font-burmese">
+                <MessageCircle className="w-4 h-4 text-[#22C55E] shrink-0" />
+                <span className="truncate">အကူအညီ / ဆွေးနွေး</span>
+              </div>
+              <div className="text-xs sm:text-sm font-bold text-[#1E5638] font-burmese flex items-center justify-between gap-2">
+                <span className="truncate">WhatsApp တိုက်ရိုက်</span>
+                <span className="w-2 h-2 rounded-full bg-[#22C55E] shrink-0"></span>
+              </div>
+            </button>
+          ) : (
+            <div className="bg-white/95 backdrop-blur rounded-xl p-3.5 sm:p-4 border border-[#E0D3C1] shadow-sm text-left flex flex-col justify-between">
+              <div className="flex items-center gap-1.5 text-[#8B5A2B] text-[11px] sm:text-xs font-medium mb-1 font-burmese">
+                <ShieldCheck className="w-4 h-4 shrink-0" />
+                <span className="truncate">တရားဝင် မော်ကွန်း</span>
+              </div>
+              <div className="text-xs sm:text-sm font-bold text-[#2C1810] font-burmese truncate">
+                {siteConfig.siteNameMy}
+              </div>
             </div>
-            <div className="text-xs sm:text-sm font-bold text-[#1E5638] font-burmese flex items-center justify-between gap-2">
-              <span className="truncate">WhatsApp တိုက်ရိုက်</span>
-              <span className="w-2 h-2 rounded-full bg-[#22C55E] shrink-0"></span>
-            </div>
-          </button>
+          )}
         </div>
       </div>
     </section>

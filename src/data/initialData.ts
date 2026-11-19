@@ -1,4 +1,38 @@
-import { AdminContact, Paper, PaperCategory, PaperRequest } from '../types';
+import { AdminContact, Paper, PaperCategory, PaperRequest, SiteConfig } from '../types';
+
+export const DEFAULT_SITE_CONFIG: SiteConfig = {
+  siteNameEn: 'ISLAMIC RESEARCH ACADEMY',
+  siteNameMy: 'အစ္စလာမ့် သုတေသန အကယ်ဒမီ',
+  heroTitleMy: 'သာသနာရေးရာ သုတေသနစာတမ်းများ ပလက်ဖောင်း',
+  heroSubtitle:
+    'ကုရ်အာန်၊ ဟဒီးစ်၊ ဖိကဟ် ဓမ္မသတ်နှင့် အစ္စလာမ့် သာသနာရေးရာ သုတေသနစာတမ်းများကို တစ်စုတစ်စည်းတည်း လေ့လာဖတ်ရှုနိုင်ပြီး ဖသ်ဝါဓမ္မသတ်များကို မေးမြန်းနိုင်ပါသည်။',
+  searchPlaceholder: 'စာတမ်းခေါင်းစဉ်၊ ရေးသားသူပညာရှင်၊ သော့ချက်စကားလုံးဖြင့် ရှာဖွေပါ...',
+  announcementEnabled: false,
+  announcementText: '',
+  announcementType: 'info',
+  maintenanceMode: false,
+  maintenanceMessage:
+    'ဝဘ်ဆိုက်အား စနစ်ပိုင်းဆိုင်ရာ ပြင်ဆင်မွမ်းမံနေပါသဖြင့် ခေတ္တစောင့်ဆိုင်းပေးပါရန် မေတ္တာရပ်ခံအပ်ပါသည်။',
+  enableFatwaSection: true,
+  enableFatwaSubmission: true,
+  enableContactTab: true,
+  enableWhatsappFloat: true,
+  enableTelegramButtons: true,
+  showDefaultSampleFatwas: true,
+  fatwaTitle: 'အစ္စလာမ့် ဓမ္မသတ် ဖသ်ဝါဌာန',
+  fatwaSubtitle:
+    'အဟ်လေစွန္နသ်ဝလ်ဂျမာအသ် ဟနဖီဖိကဟ် ဓမ္မသတ်တော်များနှင့်အညီ ဖြေကြားထားပြီးသော ဖသ်ဝါများကို ကဏ္ဍအလိုက် အကန့်များဖြင့် လေ့လာဖတ်ရှုနိုင်သလို မိမိသိလိုသော သာသနာ့ဓမ္မသတ်များကိုလည်း တိုက်ရိုက်မေးမြန်းနိုင်ပါသည်။',
+  fatwaNotice1:
+    'မြန်မာပြည်၏ လက်ရှိအခြေအနေအရ လင်မယား ပျက်စဲခြင်းနှင့်လင်မယားပြသနာ, အမွေဆိုင်ရာ ပညတ်ချက်များကို သတ်ဆိုင်ရာ ပြင်ပ ဓမ္မသတ်ရုံးများတွင်မေးပါရန်',
+  fatwaNotice2:
+    'ဖိကဟ်ဓမ္မသတ်မှာ သတိပေးစာ - အဟ်လေစွန္နသ်ဝလ်ဂျမာအသ်ဟနဖီ လမ်းစဉ်များအတွက်သာ',
+  fatwaWhatsappNumber: '',
+  footerDescription:
+    'ကုရ်အာန်ကျမ်းတော်မြတ်၊ ဟဒီးစ်တော်များနှင့် စစ်မှန်သော ဓမ္မသတ်ပညာရှင်ကြီးများ၏ လမ်းညွှန်မှုဖြင့် သာသနာရေးရာ သုတေသနစာတမ်းများကို စုစည်းထိန်းသိမ်းဖြန့်ဝေပေးလျက်ရှိသော ပလက်ဖောင်း ဖြစ်ပါသည်။',
+  contactEmail: 'contact@islamicresearch.org',
+  footerCopyright: 'Islamic Research Academy (အစ္စလာမ့် သုတေသန အကယ်ဒမီ). All rights reserved.',
+  footerTagline: 'အစ္စလာမ့် သုတေသန မော်ကွန်းတိုက်',
+};
 
 export const CATEGORIES_CONFIG: Record<
   PaperCategory,

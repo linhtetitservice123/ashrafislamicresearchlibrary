@@ -1,13 +1,14 @@
 import React from 'react';
 import { BookOpen, Phone, MessageCircle, Mail } from 'lucide-react';
 import { CATEGORIES_CONFIG } from '../data/initialData';
-import { PaperCategory, AdminContact } from '../types';
+import { PaperCategory, AdminContact, SiteConfig } from '../types';
 
 interface FooterProps {
   onSelectCategory: (cat: PaperCategory | 'all') => void;
   openAdminModal: () => void;
   openFatwaSection?: () => void;
   teamMembers?: AdminContact[];
+  siteConfig: SiteConfig;
 }
 
 export const Footer: React.FC<FooterProps> = ({
@@ -15,6 +16,7 @@ export const Footer: React.FC<FooterProps> = ({
   openAdminModal,
   openFatwaSection,
   teamMembers = [],
+  siteConfig,
 }) => {
   const primaryContact = teamMembers.length > 0 ? teamMembers[0] : null;
 
@@ -31,17 +33,16 @@ export const Footer: React.FC<FooterProps> = ({
               </div>
               <div className="min-w-0">
                 <span className="font-cinzel text-sm sm:text-base font-bold text-white tracking-wide block truncate">
-                  ISLAMIC RESEARCH ACADEMY
+                  {siteConfig.siteNameEn}
                 </span>
                 <span className="text-xs text-[#D9A86B] block truncate">
-                  အစ္စလာမ့် သုတေသန အကယ်ဒမီ
+                  {siteConfig.siteNameMy}
                 </span>
               </div>
             </div>
 
             <p className="text-xs text-[#C7B29F] leading-relaxed">
-              ကုရ်အာန်ကျမ်းတော်မြတ်၊ ဟဒီးစ်တော်များနှင့် စစ်မှန်သော ဓမ္မသတ်ပညာရှင်ကြီးများ၏ လမ်းညွှန်မှုဖြင့်
-              သာသနာရေးရာ သုတေသနစာတမ်းများကို စုစည်းထိန်းသိမ်းဖြန့်ဝေပေးလျက်ရှိသော ပလက်ဖောင်း ဖြစ်ပါသည်။
+              {siteConfig.footerDescription}
             </p>
           </div>
 
@@ -70,7 +71,7 @@ export const Footer: React.FC<FooterProps> = ({
               အကယ်ဒမီ ဝန်ဆောင်မှုများ
             </h4>
             <ul className="space-y-2 text-xs text-[#D9C4AC]">
-              {openFatwaSection && (
+              {openFatwaSection && siteConfig.enableFatwaSection && (
                 <li>
                   <button
                     onClick={openFatwaSection}
@@ -80,14 +81,16 @@ export const Footer: React.FC<FooterProps> = ({
                   </button>
                 </li>
               )}
-              <li>
-                <button
-                  onClick={openAdminModal}
-                  className="hover:text-white hover:underline text-left"
-                >
-                  • WhatsApp ဖြင့် ပညာရှင်များအား တိုက်ရိုက်မေးမြန်းရန်
-                </button>
-              </li>
+              {siteConfig.enableWhatsappFloat && (
+                <li>
+                  <button
+                    onClick={openAdminModal}
+                    className="hover:text-white hover:underline text-left"
+                  >
+                    • WhatsApp ဖြင့် ပညာရှင်များအား တိုက်ရိုက်မေးမြန်းရန်
+                  </button>
+                </li>
+              )}
               <li>
                 <span className="text-[#8C7667]">
                   • အဟ်လေစွန္နသ်ဝလ်ဂျမာအသ် ဟနဖီလမ်းစဉ်
@@ -119,20 +122,24 @@ export const Footer: React.FC<FooterProps> = ({
                   <span>ဆက်သွယ်ရေး ဖုန်းနံပါတ်များကို ဆက်သွယ်ရန် စာမျက်နှာတွင် ကြည့်ရှုနိုင်ပါသည်</span>
                 </div>
               )}
-              <div className="flex items-center gap-2 min-w-0">
-                <Mail className="w-4 h-4 text-[#D9A86B] shrink-0" />
-                <span className="truncate">contact@islamicresearch.org</span>
-              </div>
+              {siteConfig.contactEmail && (
+                <div className="flex items-center gap-2 min-w-0">
+                  <Mail className="w-4 h-4 text-[#D9A86B] shrink-0" />
+                  <span className="truncate">{siteConfig.contactEmail}</span>
+                </div>
+              )}
 
-              <div className="pt-2">
-                <button
-                  onClick={openAdminModal}
-                  className="w-full py-2.5 px-3 bg-[#1B3F2B] hover:bg-[#153423] text-[#E3F8EB] rounded-xl text-xs font-semibold flex items-center justify-center gap-2 border border-[#2E7D4E]/60 transition-all"
-                >
-                  <MessageCircle className="w-4 h-4 text-[#4ADE80]" />
-                  <span>WhatsApp စကားပြောရန်</span>
-                </button>
-              </div>
+              {siteConfig.enableWhatsappFloat && (
+                <div className="pt-2">
+                  <button
+                    onClick={openAdminModal}
+                    className="w-full py-2.5 px-3 bg-[#1B3F2B] hover:bg-[#153423] text-[#E3F8EB] rounded-xl text-xs font-semibold flex items-center justify-center gap-2 border border-[#2E7D4E]/60 transition-all"
+                  >
+                    <MessageCircle className="w-4 h-4 text-[#4ADE80]" />
+                    <span>WhatsApp စကားပြောရန်</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -142,10 +149,10 @@ export const Footer: React.FC<FooterProps> = ({
       <div className="bg-[#120804] border-t border-[#2C1810] py-4 px-4 text-xs text-[#8C7667]">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left">
           <div>
-            © {new Date().getFullYear()} Islamic Research Academy (အစ္စလာမ့် သုတေသန အကယ်ဒမီ). All rights reserved.
+            © {new Date().getFullYear()} {siteConfig.footerCopyright}
           </div>
           <div className="text-[11px] text-[#6E5644]">
-            အစ္စလာမ့် သုတေသန မော်ကွန်းတိုက်
+            {siteConfig.footerTagline}
           </div>
         </div>
       </div>
